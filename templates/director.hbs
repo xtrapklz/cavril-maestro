@@ -20,6 +20,7 @@
       {{#each arrangements}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
     </select>
     <button type="button" data-reroll data-tooltip="Re-roll layers" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
+    <button type="button" data-morph data-tooltip="Open the morph pad" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-circle-nodes"></i></button>
     <button type="button" data-stop="music" data-tooltip="Stop music"><i class="fa-solid fa-stop"></i></button>
   </div>
 

@@ -77,7 +77,21 @@
 .maestro-director .maestro-foot input[type="range"] { flex: 1; min-width: 0; }
 .maestro-director .maestro-foot button { flex: 0 0 auto; width: 30px; height: 28px; }
 
-.maestro-director .maestro-warn {
+.maestro-director .maestro-warn,
+.maestro-morph .maestro-warn {
   background: #5a1d1d; color: #ffe9e9; padding: 6px 8px; border-radius: 4px;
   font-size: 11px; line-height: 1.3; display: flex; align-items: center; gap: 6px;
 }
+
+/* ---- Morph Pad ---- */
+.maestro-morph .window-content { padding: 0; }
+.maestro-morph-body { display: flex; flex-direction: column; padding: 8px; gap: 4px; }
+.maestro-morph .mp-title { font-size: 12px; font-weight: 700; opacity: .85; display: flex; align-items: center; gap: 6px; padding: 2px; }
+.maestro-morph .mp-svg { width: 100%; height: auto; touch-action: none; user-select: none; display: block; }
+.maestro-morph .mp-ring { fill: rgba(0,0,0,.18); stroke: var(--color-border-light-tertiary, #4b4a44); stroke-width: 1.5; }
+.maestro-morph .mp-hub { fill: rgba(255,255,255,.25); }
+.maestro-morph .mp-anchor circle { fill: #6b7280; stroke: rgba(0,0,0,.4); stroke-width: 1; transition: fill .15s; }
+.maestro-morph .mp-anchor text { fill: #e8e8ea; font-size: 9px; text-anchor: middle; paint-order: stroke; stroke: rgba(0,0,0,.75); stroke-width: 2.5px; pointer-events: none; }
+.maestro-morph .mp-anchor.active circle { fill: var(--color-shadow-primary, #ff6400); }
+.maestro-morph .mp-puck { fill: var(--color-shadow-primary, #ff6400); stroke: #fff; stroke-width: 2; cursor: grab; filter: drop-shadow(0 0 4px rgba(0,0,0,.5)); }
+.maestro-morph .mp-hint { font-size: 10px; opacity: .5; text-align: center; }

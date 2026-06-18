@@ -19,6 +19,7 @@ import "./compat.mjs";
 import { EmberSoundscape, EmberAudioArrangement } from "./engine.mjs";
 import { soundscapes } from "./soundscapes.mjs";
 import { MaestroDirector } from "./director.mjs";
+import { MaestroMorphPad } from "./morphpad.mjs";
 
 const MODULE_ID = "cavril-maestro";
 const CHANNELS = ["music", "environment", "weather", "effects"];
@@ -137,7 +138,10 @@ globalThis.Maestro = {
   },
 
   /** Open the GM Director panel. */
-  openDirector() { return MaestroDirector.open(); }
+  openDirector() { return MaestroDirector.open(); },
+
+  /** Open the radial Morph Pad for the active music soundscape. */
+  openMorph() { return MaestroMorphPad.open(); }
 };
 
 /* ------------------------------------------------------------------ */

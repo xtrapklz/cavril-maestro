@@ -146,6 +146,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       this.render();
     });
     on('[data-reroll]', "click", () => Maestro.rearrange("music"));
+    on('[data-morph]', "click", () => Maestro.openMorph?.());
 
     // Stops
     onAll('[data-stop]', "click", e => { Maestro.stop(e.currentTarget.dataset.stop); this.render(); });
