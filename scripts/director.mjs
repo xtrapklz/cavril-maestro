@@ -150,6 +150,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       autoDayNight: !!game.settings.get(MODULE_ID, "autoDayNight"),
       layout, layoutList: layout === "list", layoutGrid: layout === "grid",
       weatherEnabled, sbEnabled,
+      autoWeather: !!game.settings.get(MODULE_ID, "autoWeather"),
       tabMusic: tab === "music", tabAmb: tab === "amb", tabWeather: tab === "weather", tabSfx: tab === "sfx",
       counts,
       musicGroups, ambienceGroups, weatherItems, soundboard,

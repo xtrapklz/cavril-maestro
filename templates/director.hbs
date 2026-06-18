@@ -79,6 +79,7 @@
   <div class="maestro-zone {{#if tabWeather}}active{{/if}}" data-zone="weather">
     <div class="maestro-now">
       <span class="np" data-tooltip="Now playing (weather)"><i class="fa-solid fa-cloud-bolt"></i> {{nowWeather}}</span>
+      {{#if autoWeather}}<span class="auto-badge" data-tooltip="Auto Weather is on — weather follows the calendar. Manual picks below override until the calendar next changes."><i class="fa-solid fa-calendar-check"></i> Auto</span>{{/if}}
       <button type="button" data-stop="weather" data-tooltip="Stop weather" {{#unless hasWeather}}disabled{{/unless}}><i class="fa-solid fa-stop"></i></button>
     </div>
     <div class="maestro-scroll layout-{{layout}}">

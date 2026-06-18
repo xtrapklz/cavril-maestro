@@ -61,6 +61,7 @@
 .maestro-director .maestro-now { display: flex; gap: 6px; align-items: center; }
 .maestro-director .maestro-now .np { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; }
 .maestro-director .maestro-now button { flex: 0 0 auto; width: 28px; height: 26px; }
+.maestro-director .maestro-now .auto-badge { flex: 0 0 auto; font-size: 10px; opacity: .8; display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 5px; background: #2a6a5a55; color: #a7efd6; }
 .maestro-director .maestro-controls { display: flex; gap: 6px; align-items: center; }
 .maestro-director .maestro-controls select { flex: 1; min-width: 0; }
 .maestro-director .maestro-controls button { flex: 0 0 auto; width: 28px; height: 26px; }

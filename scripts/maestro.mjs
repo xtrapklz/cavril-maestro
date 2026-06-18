@@ -109,6 +109,44 @@ globalThis.Maestro = {
   },
 
   /**
+   * Map a calendar weather icon (FontAwesome class from Mini Calendar's forecast)
+   * to one of Maestro's weather arrangements, or null for "no weather sound"
+   * (clear / clouds / snow / wind — Maestro has no snow bed). Tunable here.
+   * @param {string} icon
+   * @returns {string|null}
+   */
+  weatherArrangementForIcon(icon = "") {
+    const s = String(icon).toLowerCase();
+    if (/bolt/.test(s)) return "rainStorm";              // thunderstorm
+    if (/snow-blowing|blizzard/.test(s)) return "rainStorm"; // howling wind
+    if (/showers-heavy/.test(s)) return "rainNormal";    // rain / heavy rain
+    if (/hail|cloud-rain/.test(s)) return "rainLight";   // light rain / hail
+    if (/smog|fog/.test(s)) return "arcaneFog";          // fog
+    return null;                                          // clear / clouds / snow / wind / sun
+  },
+
+  /**
+   * Follow Mini Calendar's weather: read its current forecast and play the
+   * matching Maestro weather arrangement (or stop the weather channel when the
+   * sky is clear). Gated by the world setting `autoWeather`; coexists with Mini
+   * Calendar's own "enableWeatherSound" toggle so the GM has granular control.
+   * GM only — the state broadcast carries it to players.
+   */
+  async syncWeatherFromCalendar() {
+    if (!game.user?.isGM) return;
+    if (!game.settings.get(MODULE_ID, "autoWeather")) return;
+    const mc = game.modules.get("wgtgm-mini-calendar");
+    if (!mc?.active || typeof mc.api?.getForecast !== "function") return;
+    let icon = null;
+    try { icon = (await mc.api.getForecast())?.weatherIcon ?? null; }
+    catch (e) { return void console.warn(`${MODULE_ID} | weather forecast read skipped:`, e); }
+    const arr = this.weatherArrangementForIcon(icon);
+    const cur = this.sound?.getActiveConfiguration?.().weather ?? {};
+    if (arr) { if (cur.arrangementId !== arr) await this.play("weather", { channel: "weather", arrangementId: arr }); }
+    else if (cur.arrangementId) { await this.stop("weather"); }
+  },
+
+  /**
    * Base per-channel configuration for the active scene. Reads an optional
    * scene flag (Stage 3 auto-by-scene); otherwise returns empty channels so the
    * GM's explicit overrides fully drive playback.
@@ -317,12 +355,23 @@ Hooks.once("init", () => {
   // driven by a calendar/weather module instead).
   game.settings.register(MODULE_ID, "weatherEnabled", {
     name: "Show Weather Zone",
-    hint: "Show the Weather tab in the Director. Leave off if you control weather elsewhere (e.g. Mini Calendar).",
+    hint: "Show the Weather tab in the Director for manual weather control. Independent of Auto Weather below.",
     scope: "world",
     config: true,
     type: Boolean,
     default: false,
     onChange: () => MaestroDirector.refresh()
+  });
+
+  // Follow Mini Calendar's weather and play the matching Maestro weather bed.
+  game.settings.register(MODULE_ID, "autoWeather", {
+    name: "Auto Weather (follow calendar)",
+    hint: "When Mini Calendar's weather changes, automatically play Maestro's matching weather sound (rain/storm/fog), and silence it when the sky clears. This is independent of Mini Calendar's own 'enableWeatherSound' toggle — turn that off if you want only Maestro's weather audio (or leave both on to layer them).",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+    onChange: () => Maestro.syncWeatherFromCalendar?.()
   });
 
   // Soundboard of one-shot SFX from a configurable folder.
@@ -458,6 +507,9 @@ Hooks.once("ready", async () => {
     // Auto combat music — drive the music channel from encounter monsters.
     try { MaestroCombat.installHooks(); } catch (e) { console.warn(`${MODULE_ID} | combat hooks skipped:`, e); }
 
+    // Follow the calendar's current weather (if Mini Calendar is present).
+    try { Maestro.syncWeatherFromCalendar(); } catch (e) { console.warn(`${MODULE_ID} | initial weather sync skipped:`, e); }
+
     // Stage-1 control surface: reuse the lifted Playlists-sidebar selector
     // (soundscape + mood + environment pickers). Replaced by a dedicated
     // Director panel in Stage 2.
@@ -478,16 +530,26 @@ Hooks.once("ready", async () => {
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
-/*  Auto day/night — react to calendar time changes (debounced)        */
+/*  Auto day/night + auto weather — react to calendar changes (debounced) */
 /* ------------------------------------------------------------------ */
 
-let _dnTimer = null;
-Hooks.on("updateWorldTime", () => {
-  clearTimeout(_dnTimer);
-  _dnTimer = setTimeout(() => {
+let _calTimer = null;
+function onCalendarChange() {
+  clearTimeout(_calTimer);
+  _calTimer = setTimeout(() => {
     try { Maestro.applyDayNight(); }
     catch (e) { console.warn(`${MODULE_ID} | day/night switch skipped:`, e); }
+    try { Maestro.syncWeatherFromCalendar(); }
+    catch (e) { console.warn(`${MODULE_ID} | weather sync skipped:`, e); }
   }, 400);
+}
+
+// Time advancing changes both the phase and (often) the weather.
+Hooks.on("updateWorldTime", onCalendarChange);
+// Mini Calendar has no change hook — it writes its weather to a world setting,
+// so react to that setting's update to catch manual weather overrides too.
+Hooks.on("updateSetting", setting => {
+  if (setting?.key === "wgtgm-mini-calendar.weatherHistoryStore") onCalendarChange();
 });
 
 Hooks.on("getSceneControlButtons", controls => {
