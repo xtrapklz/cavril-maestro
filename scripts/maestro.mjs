@@ -19,8 +19,8 @@ import "./compat.mjs";
 import { EmberSoundscape, EmberAudioArrangement } from "./engine.mjs";
 import { soundscapes } from "./soundscapes.mjs";
 import { MaestroDirector } from "./director.mjs";
-import { MaestroMorphPad } from "./morphpad.mjs";
-import { dayNightVariant } from "./meta.mjs";
+import { MaestroCombat } from "./combat.mjs";
+import { dayNightVariant, prettify } from "./meta.mjs";
 
 const MODULE_ID = "cavril-maestro";
 const CHANNELS = ["music", "environment", "weather", "effects"];
@@ -187,8 +187,43 @@ globalThis.Maestro = {
   /** Open the GM Director panel. */
   openDirector() { return MaestroDirector.open(); },
 
-  /** Open the radial Morph Pad for the active music soundscape. */
-  openMorph() { return MaestroMorphPad.open(); },
+  /* ----- Soundboard (one-shot SFX from a configurable folder) ----- */
+
+  /**
+   * List the audio files in the configured soundboard folder. Best-effort
+   * across file sources (Forge assets vs local data); returns [] on failure.
+   * @returns {Promise<Array<{src:string,name:string}>>}
+   */
+  async browseSoundboard() {
+    const path = String(game.settings.get(MODULE_ID, "soundboardPath") || "").trim();
+    if (!path) return [];
+    const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
+    const AUDIO = [".ogg", ".mp3", ".wav", ".webm", ".m4a", ".opus", ".flac"];
+    const tryBrowse = async source => {
+      try { const r = await FP.browse(source, path); return Array.isArray(r?.files) ? r.files : null; }
+      catch (_e) { return null; }
+    };
+    const order = /^https?:/i.test(path) ? ["forgevtt", "s3", "data"] : ["data", "forgevtt"];
+    let files = null;
+    for (const s of order) { files = await tryBrowse(s); if (files) break; }
+    return (files || [])
+      .filter(f => AUDIO.some(e => f.toLowerCase().split("?")[0].endsWith(e)))
+      .map(src => {
+        const base = decodeURIComponent(src.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "");
+        return { src, name: prettify(base) };
+      });
+  },
+
+  /** Play a one-shot effect for everyone (GM-triggered, broadcast to all). */
+  playOneShot(src, { volume } = {}) {
+    if (!src) return;
+    const v = Number.isFinite(volume) ? volume : 0.8;
+    try {
+      return foundry.audio.AudioHelper.play({ src, volume: v, autoplay: true, loop: false }, true);
+    } catch (e) {
+      console.warn(`${MODULE_ID} | one-shot play failed:`, e);
+    }
+  },
 
   /* ----- Custom display names (GM-authored, world-shared) ----- */
 
@@ -276,6 +311,57 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true,
     onChange: () => Maestro.applyDayNight?.()
+  });
+
+  // Show the Weather zone in the Director (off by default — weather is often
+  // driven by a calendar/weather module instead).
+  game.settings.register(MODULE_ID, "weatherEnabled", {
+    name: "Show Weather Zone",
+    hint: "Show the Weather tab in the Director. Leave off if you control weather elsewhere (e.g. Mini Calendar).",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+    onChange: () => MaestroDirector.refresh()
+  });
+
+  // Soundboard of one-shot SFX from a configurable folder.
+  game.settings.register(MODULE_ID, "soundboardEnabled", {
+    name: "Enable Soundboard",
+    hint: "Show a Soundboard tab that lists every audio file in the folder below as a click-to-play one-shot (broadcast to all players).",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+    onChange: () => MaestroDirector.refresh()
+  });
+  game.settings.register(MODULE_ID, "soundboardPath", {
+    name: "Soundboard Folder",
+    hint: "Folder holding your one-shot sound effects (a local path or a Forge Assets Library URL). Each audio file becomes a tile.",
+    scope: "world",
+    config: true,
+    type: String,
+    default: "",
+    onChange: () => MaestroDirector.refresh()
+  });
+
+  // Auto combat music — pick a combat theme from the monsters in the encounter.
+  game.settings.register(MODULE_ID, "autoCombatMusic", {
+    name: "Auto Combat Music",
+    hint: "When combat begins, automatically play a combat theme chosen from the monsters present, and re-pick as they fall. Restores the previous music when combat ends.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+  game.settings.register(MODULE_ID, "combatHordeWeight", {
+    name: "Combat Horde Weight",
+    hint: "Extra weight each monster body adds on top of its CR when choosing combat music. Higher = swarms of weak minions hold their theme longer before a boss takes over. 0 = pure CR totals.",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 1,
+    range: { min: 0, max: 5, step: 0.25 }
   });
 
   game.settings.register(MODULE_ID, "crossfadeSeconds", {
@@ -368,6 +454,9 @@ Hooks.once("ready", async () => {
 
     // Snap the restored state to the current time of day (if it has variants).
     try { Maestro.applyDayNight(); } catch (e) { console.warn(`${MODULE_ID} | initial day/night sync skipped:`, e); }
+
+    // Auto combat music — drive the music channel from encounter monsters.
+    try { MaestroCombat.installHooks(); } catch (e) { console.warn(`${MODULE_ID} | combat hooks skipped:`, e); }
 
     // Stage-1 control surface: reuse the lifted Playlists-sidebar selector
     // (soundscape + mood + environment pickers). Replaced by a dedicated

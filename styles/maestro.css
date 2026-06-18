@@ -110,45 +110,50 @@
 .maestro-director .maestro-item:hover .maestro-rename { opacity: .55; }
 .maestro-director .maestro-rename:hover { opacity: 1 !important; background: rgba(255,255,255,0.15); }
 
-/* Icon-grid layout */
+/* Icon-grid layout — one continuous, uniform grid of tinted tiles */
 .maestro-director .maestro-scroll.layout-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
-  gap: 6px; align-content: start;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  grid-auto-rows: 66px; gap: 6px; align-content: start;
 }
-.maestro-director .layout-grid .grp { grid-column: 1 / -1; }
+.maestro-director .layout-grid .grp { display: none; }            /* color tint conveys category */
 .maestro-director .layout-grid .maestro-item {
-  flex-direction: column; text-align: center; gap: 4px; padding: 10px 6px;
+  flex-direction: column; text-align: center; gap: 3px; padding: 6px 4px;
   border: 1px solid var(--color-border-light-tertiary, #4b4a44);
-  border-radius: 8px; min-height: 64px; justify-content: center;
+  border-radius: 8px; justify-content: center; overflow: hidden;
 }
-.maestro-director .layout-grid .maestro-item > i { flex: 0 0 auto; font-size: 22px; }
-.maestro-director .layout-grid .maestro-item .nm { white-space: normal; font-size: 11px; line-height: 1.15; flex: 0 0 auto; }
+.maestro-director .layout-grid .maestro-item > i { flex: 0 0 auto; font-size: 20px; }
+.maestro-director .layout-grid .maestro-item .nm {
+  white-space: normal; font-size: 10px; line-height: 1.1; flex: 0 0 auto;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 .maestro-director .layout-grid .maestro-item .sub { display: none; }
-.maestro-director .layout-grid .maestro-rename { position: absolute; top: 3px; right: 3px; }
+.maestro-director .layout-grid .maestro-rename { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; }
+
+/* Per-category color tint (grid only; the active highlight still wins) */
+.maestro-director .layout-grid .maestro-item[data-cat="combat"]     { background: #7a232333; border-color: #b9484866; color: #f3b1b1; }
+.maestro-director .layout-grid .maestro-item[data-cat="settlement"] { background: #8a661433; border-color: #c9991f66; color: #f0d090; }
+.maestro-director .layout-grid .maestro-item[data-cat="wild"]       { background: #2f6b2f33; border-color: #4e9e4e66; color: #aede9f; }
+.maestro-director .layout-grid .maestro-item[data-cat="coast"]      { background: #1d5b7a33; border-color: #3a92b966; color: #9fd2ef; }
+.maestro-director .layout-grid .maestro-item[data-cat="dungeon"]    { background: #5a3a7a33; border-color: #8a5bb966; color: #d0b1ef; }
+.maestro-director .layout-grid .maestro-item[data-cat="sacred"]     { background: #2a6a7a33; border-color: #45a7b966; color: #a7e6ef; }
+.maestro-director .layout-grid .maestro-item[data-cat="folk"]       { background: #8a4a1433; border-color: #c97a1f66; color: #f0c090; }
+.maestro-director .layout-grid .maestro-item[data-cat="theme"]      { background: #44485a33; border-color: #6b7088aa; color: #c4c9da; }
+.maestro-director .layout-grid .maestro-item[data-cat="weather"]    { background: #3a4a6a33; border-color: #5b76b966; color: #aebef0; }
+.maestro-director .layout-grid .maestro-item[data-cat="ambience"]   { background: #2a6a5a33; border-color: #45b99566; color: #a7efd6; }
+.maestro-director .layout-grid .maestro-item[data-cat="sfx"]        { background: #7a2a6a33; border-color: #b945a766; color: #efa7e0; }
+.maestro-director .layout-grid .maestro-item.active { background: var(--color-shadow-primary, #ff6400); border-color: #fff; color: #fff; }
 
 .maestro-director .hidden { display: none !important; }
 
-/* Footer: volumes + stop all */
-.maestro-director .maestro-foot { display: flex; align-items: center; gap: 6px; }
-.maestro-director .maestro-foot i { opacity: .6; flex: 0 0 auto; }
-.maestro-director .maestro-foot input[type="range"] { flex: 1; min-width: 0; }
-.maestro-director .maestro-foot button { flex: 0 0 auto; width: 30px; height: 28px; }
+/* Soundboard status lines */
+.maestro-director .sb-status { font-size: 11px; opacity: .65; padding: 4px 6px; display: flex; align-items: center; gap: 6px; }
 
-.maestro-director .maestro-warn,
-.maestro-morph .maestro-warn {
+/* Footer: stop-all + levels hint (per-channel volume lives on the playlist) */
+.maestro-director .maestro-foot { display: flex; align-items: center; gap: 8px; }
+.maestro-director .maestro-foot .foot-hint { flex: 1; min-width: 0; font-size: 10px; opacity: .5; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.maestro-director .maestro-foot button { flex: 0 0 auto; height: 28px; padding: 0 10px; display: flex; align-items: center; gap: 5px; }
+
+.maestro-director .maestro-warn {
   background: #5a1d1d; color: #ffe9e9; padding: 6px 8px; border-radius: 4px;
   font-size: 11px; line-height: 1.3; display: flex; align-items: center; gap: 6px;
 }
-
-/* ---- Morph Pad ---- */
-.maestro-morph .window-content { padding: 0; }
-.maestro-morph-body { display: flex; flex-direction: column; padding: 8px; gap: 4px; }
-.maestro-morph .mp-title { font-size: 12px; font-weight: 700; opacity: .85; display: flex; align-items: center; gap: 6px; padding: 2px; }
-.maestro-morph .mp-svg { width: 100%; height: auto; touch-action: none; user-select: none; display: block; }
-.maestro-morph .mp-ring { fill: rgba(0,0,0,.18); stroke: var(--color-border-light-tertiary, #4b4a44); stroke-width: 1.5; }
-.maestro-morph .mp-hub { fill: rgba(255,255,255,.25); }
-.maestro-morph .mp-anchor circle { fill: #6b7280; stroke: rgba(0,0,0,.4); stroke-width: 1; transition: fill .15s; }
-.maestro-morph .mp-anchor text { fill: #e8e8ea; font-size: 9px; text-anchor: middle; paint-order: stroke; stroke: rgba(0,0,0,.75); stroke-width: 2.5px; pointer-events: none; }
-.maestro-morph .mp-anchor.active circle { fill: var(--color-shadow-primary, #ff6400); }
-.maestro-morph .mp-puck { fill: var(--color-shadow-primary, #ff6400); stroke: #fff; stroke-width: 2; cursor: grab; filter: drop-shadow(0 0 4px rgba(0,0,0,.5)); }
-.maestro-morph .mp-hint { font-size: 10px; opacity: .5; text-align: center; }

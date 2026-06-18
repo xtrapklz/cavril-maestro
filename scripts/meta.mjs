@@ -81,6 +81,86 @@ export const WEATHER = {
   mayisStorm: "Magical Storm"
 };
 
+/* ---- Curated generic names for the ambience THEMES ----
+ * Keyed by the day/night-stripped base id (so each theme is one entry; the
+ * actual day/night arrangement is chosen by the clock). Names are concise,
+ * content-based descriptions inferred from the sounds each theme is built from
+ * — the lore names (Ordain, Arcturel, Yakoshta…) are dropped in favour of what
+ * the place actually *is*. The original Ember label is shown as a subtitle. */
+export const AMBIENCE = {
+  campVista:               { name: "Wilderness Camp",       cat: "wild",       icon: "fa-solid fa-campground" },
+  bluffs:                  { name: "Windswept Sea Cliffs",  cat: "coast",      icon: "fa-solid fa-water" },
+  cauldron:                { name: "Bubbling Pools",         cat: "coast",      icon: "fa-solid fa-droplet" },
+  jungle:                  { name: "Jungle",                 cat: "wild",       icon: "fa-solid fa-leaf" },
+  mountains:               { name: "Mountains",              cat: "wild",       icon: "fa-solid fa-mountain" },
+  ocean:                   { name: "Open Ocean",             cat: "coast",      icon: "fa-solid fa-water" },
+  oceanShip:               { name: "Ship at Sea",            cat: "coast",      icon: "fa-solid fa-ship" },
+  tidalPools:              { name: "Tide Pools",             cat: "coast",      icon: "fa-solid fa-water" },
+  teeth:                   { name: "Jagged Coastline",       cat: "coast",      icon: "fa-solid fa-water" },
+  gravensRest:             { name: "Quiet Harbor Town",      cat: "settlement", icon: "fa-solid fa-anchor" },
+  raiderHideout:           { name: "Cliffside Hideout",      cat: "coast",      icon: "fa-solid fa-skull-crossbones" },
+  sunkenRejarh:            { name: "Sunken Ruins",           cat: "coast",      icon: "fa-solid fa-water-ladder" },
+  ancientRuins:            { name: "Ancient Ruins",          cat: "dungeon",    icon: "fa-solid fa-archway" },
+  ancientRuinsMagicDepths: { name: "Ancient Ruins — Deep",   cat: "dungeon",    icon: "fa-solid fa-archway" },
+  bloodletterCave:         { name: "Bat-Infested Cave",      cat: "dungeon",    icon: "fa-solid fa-dungeon" },
+  shipwreck:               { name: "Shipwreck Shore",        cat: "coast",      icon: "fa-solid fa-water" },
+  noxiousCave:             { name: "Noxious Cavern",         cat: "dungeon",    icon: "fa-solid fa-dungeon" },
+  forestStone:             { name: "Petrified Forest",       cat: "wild",       icon: "fa-solid fa-tree" },
+  spires:                  { name: "Stone Spires",           cat: "wild",       icon: "fa-solid fa-mountain" },
+  dripstones:              { name: "Dripstone Caves",        cat: "dungeon",    icon: "fa-solid fa-dungeon" },
+  Yakoshta:                { name: "Marshland Crags",        cat: "wild",       icon: "fa-solid fa-mountain" },
+  shentWaterTemple:        { name: "Water Temple",           cat: "sacred",     icon: "fa-solid fa-place-of-worship" },
+  kaleidoscopeCaverns:     { name: "Crystal Caverns",        cat: "dungeon",    icon: "fa-solid fa-gem" },
+  kaleidoscopeGrave:       { name: "Crystal Tomb",           cat: "dungeon",    icon: "fa-solid fa-gem" },
+  helkas:                  { name: "Farming Village",        cat: "settlement", icon: "fa-solid fa-wheat-awn" },
+  helkasFestival:          { name: "Village Festival",       cat: "folk",       icon: "fa-solid fa-people-group" },
+  helkasAttackDrakes:      { name: "Village Raid — Drakes",  cat: "settlement", icon: "fa-solid fa-fire" },
+  helkasAttackRaiders:     { name: "Village Raid — Raiders", cat: "settlement", icon: "fa-solid fa-fire" },
+  helkasAttack:            { name: "Village Raid",           cat: "settlement", icon: "fa-solid fa-fire" },
+  oozeFarm:                { name: "Festering Bog",          cat: "wild",       icon: "fa-solid fa-droplet" },
+  yakoshtaMine:            { name: "Working Mine",           cat: "dungeon",    icon: "fa-solid fa-helmet-safety" },
+  goldenFlats:             { name: "Golden Plains",          cat: "wild",       icon: "fa-solid fa-mountain-sun" },
+  goldenFlatsWater:        { name: "Riverside Plains",       cat: "wild",       icon: "fa-solid fa-water" },
+  rustvarValleys:          { name: "Windswept Valleys",      cat: "wild",       icon: "fa-solid fa-mountain-sun" },
+  corpinSanctuary:         { name: "Open Grasslands",        cat: "wild",       icon: "fa-solid fa-mountain-sun" },
+  bloodwoods:              { name: "Deep Woods",             cat: "wild",       icon: "fa-solid fa-tree" },
+  ameraspGrove:            { name: "Ancient Grove",          cat: "wild",       icon: "fa-solid fa-tree" },
+  bleakArchive:            { name: "Arcane Archive",         cat: "sacred",     icon: "fa-solid fa-wand-magic-sparkles" },
+  signara:                 { name: "Crystal Sanctum",        cat: "sacred",     icon: "fa-solid fa-gem" },
+  redrakFields:            { name: "Farm Fields",            cat: "settlement", icon: "fa-solid fa-wheat-awn" },
+  skybrush:                { name: "High Plains",            cat: "wild",       icon: "fa-solid fa-mountain-sun" },
+  steedsPoint:             { name: "Cliffside Plains",       cat: "wild",       icon: "fa-solid fa-mountain-sun" },
+  marlstoneGala:           { name: "Grand Ballroom",         cat: "folk",       icon: "fa-solid fa-champagne-glasses" },
+  pathways:                { name: "Underground Pathways",   cat: "dungeon",    icon: "fa-solid fa-dungeon" },
+  scrapyard:               { name: "Scrapyard",              cat: "dungeon",    icon: "fa-solid fa-gears" },
+  inkaroPools:             { name: "Underground Pools",      cat: "dungeon",    icon: "fa-solid fa-droplet" },
+  mycelianExpanse:         { name: "Fungal Expanse",         cat: "dungeon",    icon: "fa-solid fa-dungeon" },
+  fogboundCaverns:         { name: "Fogbound Caverns",       cat: "dungeon",    icon: "fa-solid fa-dungeon" },
+  primordialBastion:       { name: "Primordial Depths",      cat: "dungeon",    icon: "fa-solid fa-dungeon" },
+  quarryLabChaos:          { name: "Laboratory — Chaos",     cat: "dungeon",    icon: "fa-solid fa-flask" },
+  quarryLab:               { name: "Laboratory — Quiet",     cat: "dungeon",    icon: "fa-solid fa-flask" },
+  splinterCanyons:         { name: "Desert Canyons",         cat: "wild",       icon: "fa-solid fa-mountain-sun" },
+  wedgelands:              { name: "Barren Badlands",        cat: "wild",       icon: "fa-solid fa-mountain-sun" },
+  seawall:                 { name: "Seaside Town",           cat: "settlement", icon: "fa-solid fa-anchor" },
+  nain:                    { name: "River Port Town",        cat: "settlement", icon: "fa-solid fa-anchor" },
+  ordainDocks:             { name: "Town Docks",             cat: "settlement", icon: "fa-solid fa-anchor" },
+  ordainFlats:             { name: "City Streets",           cat: "settlement", icon: "fa-solid fa-city" },
+  ordainSpires:            { name: "Upper City",             cat: "settlement", icon: "fa-solid fa-city" },
+  upperArcturel:           { name: "Hilltop City",           cat: "settlement", icon: "fa-solid fa-city" },
+  lowerArcturel:           { name: "Undercity",              cat: "settlement", icon: "fa-solid fa-city" },
+  Arcturel:                { name: "Great City",             cat: "settlement", icon: "fa-solid fa-city" },
+  waterworks:              { name: "Waterworks",             cat: "dungeon",    icon: "fa-solid fa-water" },
+  clockworkDungeon:        { name: "Clockwork Dungeon",      cat: "dungeon",    icon: "fa-solid fa-gears" },
+  burialGrounds:           { name: "Burial Grounds",         cat: "dungeon",    icon: "fa-solid fa-skull" },
+  spellbreakerTower:       { name: "Wizard's Tower",         cat: "sacred",     icon: "fa-solid fa-hat-wizard" },
+  embersBounty:            { name: "Anchored Ship",          cat: "coast",      icon: "fa-solid fa-anchor" },
+  pitTrap:                 { name: "Fighting Pit",           cat: "folk",       icon: "fa-solid fa-hand-fist" },
+  sarinStrand:             { name: "Windy Beach",            cat: "coast",      icon: "fa-solid fa-water" },
+  ordainTemple:            { name: "Temple Interior",        cat: "sacred",     icon: "fa-solid fa-place-of-worship" },
+  ordainInterior:          { name: "Town Interior",          cat: "settlement", icon: "fa-solid fa-house" },
+  stadiumUnderworks:       { name: "Underworks",             cat: "dungeon",    icon: "fa-solid fa-dungeon" }
+};
+
 /* ---- Helpers ---- */
 
 /** Turn a camelCase / lore id into a readable title, tagging Day/Night/Tension. */
@@ -111,6 +191,24 @@ export function ambienceCategory(id = "") {
 
 export function ambienceIcon(id = "") {
   return CATEGORIES[ambienceCategory(id)]?.icon ?? CATEGORIES.ambience.icon;
+}
+
+/** The day/night-stripped base id for an ambience arrangement (its "theme"). */
+export function ambienceBase(id = "") {
+  return /(?:day|night)$/i.test(id) ? id.replace(/(?:day|night)$/i, "") : id;
+}
+
+/**
+ * Display info for an ambience arrangement, resolved at the THEME level so day
+ * and night variants share one curated generic name/category/icon. Falls back
+ * to prettify + keyword categorisation for anything not in the curated map.
+ * @returns {{name:string, cat:string, icon:string, base:string}}
+ */
+export function ambienceMeta(id = "") {
+  const base = ambienceBase(id);
+  const m = AMBIENCE[base];
+  if (m) return { ...m, base };
+  return { name: prettify(base), cat: ambienceCategory(base), icon: ambienceIcon(base), base };
 }
 
 /** Display info for a music soundscape id. */

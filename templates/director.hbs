@@ -16,9 +16,14 @@
   </div>
 
   <div class="maestro-tabs" role="tablist">
-    <button type="button" data-tab="music"   class="{{#if tabMusic}}active{{/if}}"><i class="fa-solid fa-music"></i> Music <span class="cnt">{{counts.music}}</span></button>
-    <button type="button" data-tab="amb"     class="{{#if tabAmb}}active{{/if}}"><i class="fa-solid fa-wind"></i> Ambience <span class="cnt">{{counts.amb}}</span></button>
+    <button type="button" data-tab="music" class="{{#if tabMusic}}active{{/if}}"><i class="fa-solid fa-music"></i> Music <span class="cnt">{{counts.music}}</span></button>
+    <button type="button" data-tab="amb" class="{{#if tabAmb}}active{{/if}}"><i class="fa-solid fa-wind"></i> Ambience <span class="cnt">{{counts.amb}}</span></button>
+    {{#if weatherEnabled}}
     <button type="button" data-tab="weather" class="{{#if tabWeather}}active{{/if}}"><i class="fa-solid fa-cloud-bolt"></i> Weather <span class="cnt">{{counts.weather}}</span></button>
+    {{/if}}
+    {{#if sbEnabled}}
+    <button type="button" data-tab="sfx" class="{{#if tabSfx}}active{{/if}}"><i class="fa-solid fa-bullhorn"></i> Soundboard <span class="cnt">{{counts.sfx}}</span></button>
+    {{/if}}
   </div>
 
   {{!-- MUSIC ZONE --}}
@@ -35,14 +40,13 @@
         {{#each arrangements}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
       </select>
       <button type="button" data-reroll data-tooltip="Re-roll layers" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
-      <button type="button" data-morph data-tooltip="Open the morph pad" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-circle-nodes"></i></button>
       <button type="button" data-stop="music" data-tooltip="Stop music" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-stop"></i></button>
     </div>
     <div class="maestro-scroll layout-{{layout}}">
       {{#each musicGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="music" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}">
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="music" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
           <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
         </div>
@@ -61,7 +65,7 @@
       {{#each ambienceGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="amb" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}">
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="amb" data-id="{{id}}" data-rename-id="{{renameId}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
           <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
         </div>
@@ -70,6 +74,7 @@
     </div>
   </div>
 
+  {{#if weatherEnabled}}
   {{!-- WEATHER ZONE --}}
   <div class="maestro-zone {{#if tabWeather}}active{{/if}}" data-zone="weather">
     <div class="maestro-now">
@@ -78,20 +83,38 @@
     </div>
     <div class="maestro-scroll layout-{{layout}}">
       {{#each weatherItems}}
-      <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="weather" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}">
+      <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="weather" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
         <i class="fa-solid fa-cloud"></i><span class="nm">{{name}}</span>
         <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
       </div>
       {{/each}}
     </div>
   </div>
+  {{/if}}
+
+  {{#if sbEnabled}}
+  {{!-- SOUNDBOARD ZONE --}}
+  <div class="maestro-zone {{#if tabSfx}}active{{/if}}" data-zone="sfx">
+    <div class="maestro-now">
+      <span class="np" data-tooltip="{{sbPath}}"><i class="fa-solid fa-bullhorn"></i> Soundboard <span class="cnt">{{counts.sfx}}</span></span>
+      <button type="button" data-sb-refresh data-tooltip="Rescan folder"><i class="fa-solid fa-rotate"></i></button>
+    </div>
+    {{#if sbWarning}}<div class="maestro-warn"><i class="fa-solid fa-triangle-exclamation"></i> Set the Soundboard Folder in module settings.</div>{{/if}}
+    {{#if sbLoading}}<div class="sb-status"><i class="fa-solid fa-spinner fa-spin"></i> Scanning folder…</div>{{/if}}
+    {{#if sbEmpty}}<div class="sb-status"><i class="fa-solid fa-circle-info"></i> No audio files found in that folder (check the path / source).</div>{{/if}}
+    <div class="maestro-scroll layout-grid">
+      {{#each soundboard}}
+      <div class="maestro-item" role="button" tabindex="0" data-kind="sfx" data-src="{{src}}" data-name="{{name}}" data-cat="{{cat}}">
+        <i class="fa-solid fa-volume-high"></i><span class="nm">{{name}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
 
   <div class="maestro-foot">
-    <i class="fa-solid fa-music" data-tooltip="Music volume"></i>
-    <input type="range" name="music-volume" min="0" max="1" step="0.05" value="{{musicVolume}}">
-    <i class="fa-solid fa-wind" data-tooltip="Ambience volume"></i>
-    <input type="range" name="environment-volume" min="0" max="1" step="0.05" value="{{envVolume}}">
-    <button type="button" data-stopall data-tooltip="Stop everything"><i class="fa-solid fa-circle-stop"></i></button>
+    <span class="foot-hint" data-tooltip="Per-channel levels live on the Maestro Channels playlist"><i class="fa-solid fa-sliders"></i> Levels: Maestro Channels</span>
+    <button type="button" data-stopall data-tooltip="Stop everything"><i class="fa-solid fa-circle-stop"></i> Stop all</button>
   </div>
 {{/unless}}
 </div>

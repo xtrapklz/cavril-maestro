@@ -1,14 +1,17 @@
 /**
- * Cavril Maestro — Director panel (v0.6)
- * A searchable, categorised, icon'd picker over Music (soundscapes), Ambience
- * (emberEnvironment arrangements) and Weather, split into three zones (tabs).
- * Supports a list or icon-grid layout and GM-authored custom cue names.
- * Drives everything through the public Maestro.* API, which broadcasts to all
- * players.
+ * Cavril Maestro — Director panel (v0.8)
+ * Tabbed picker over Music (soundscapes), Ambience (emberEnvironment themes,
+ * day/night collapsed into one generic-named entry), optional Weather, and an
+ * optional Soundboard of one-shot SFX from a configured folder. List or
+ * icon-grid layout; GM-authored custom cue names. Everything routes through the
+ * public Maestro.* API, which broadcasts to all players.
  */
 
 import { soundscapes } from "./soundscapes.mjs";
-import { CATEGORIES, WEATHER, prettify, ambienceCategory, ambienceIcon, musicMeta, hasTension, moodVariant } from "./meta.mjs";
+import {
+  CATEGORIES, WEATHER, prettify, musicMeta, hasTension, moodVariant,
+  ambienceBase, ambienceMeta
+} from "./meta.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const MODULE_ID = "cavril-maestro";
@@ -34,8 +37,12 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** @type {string} live search query, preserved across re-renders */
   #search = "";
-  /** @type {"music"|"amb"|"weather"} active zone, preserved across re-renders */
+  /** @type {string} active zone ("music"|"amb"|"weather"|"sfx"), preserved */
   #tab = "music";
+  /** soundboard file cache + the path it was built for */
+  #soundboard = null;
+  #sbPath = null;
+  #sbBusy = false;
 
   /* ----- singleton ----- */
   static #instance = null;
@@ -56,10 +63,20 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Custom GM label for a cue, or "" if none. */
   #cn(kind, id) { return (id && Maestro.customName?.(kind, id)) || ""; }
 
+  /** The currently-active tab, falling back to Music if its zone is disabled. */
+  #activeTab(weatherEnabled, sbEnabled) {
+    if (this.#tab === "weather" && !weatherEnabled) return "music";
+    if (this.#tab === "sfx" && !sbEnabled) return "music";
+    return this.#tab;
+  }
+
   async _prepareContext(_options) {
     const cfg = Maestro.sound?.getActiveConfiguration?.() ?? {};
     const music = cfg.music ?? {}, env = cfg.environment ?? {}, weather = cfg.weather ?? {};
     const layout = game.settings.get(MODULE_ID, "gridLayout") ? "grid" : "list";
+    const weatherEnabled = !!game.settings.get(MODULE_ID, "weatherEnabled");
+    const sbEnabled = !!game.settings.get(MODULE_ID, "soundboardEnabled");
+    const tab = this.#activeTab(weatherEnabled, sbEnabled);
 
     // Music grouped by category (custom name overrides the curated one).
     const musicByCat = {};
@@ -68,40 +85,55 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const m = musicMeta(s.id);
       const custom = this.#cn("music", s.id);
       (musicByCat[m.cat] ??= []).push({
-        id: s.id, base: m.name, name: custom || m.name,
+        id: s.id, base: m.name, name: custom || m.name, cat: m.cat,
         sub: custom ? m.name : s.id, icon: m.icon, active: s.id === music.soundscapeId
       });
     }
 
-    // Ambience (emberEnvironment arrangements) grouped by category.
+    // Ambience: collapse day/night into one generic-named THEME entry.
     const ambByCat = {};
-    for (const arrId of Object.keys(soundscapes.emberEnvironment?.arrangements ?? {})) {
-      const base = prettify(arrId);
-      const custom = this.#cn("amb", arrId);
-      (ambByCat[ambienceCategory(arrId)] ??= []).push({
-        id: arrId, base, name: custom || base,
-        sub: custom ? base : arrId, icon: ambienceIcon(arrId), active: arrId === env.arrangementId
+    const envArrs = soundscapes.emberEnvironment?.arrangements ?? {};
+    const curBase = ambienceBase(env.arrangementId || "");
+    const seen = new Set();
+    for (const arrId of Object.keys(envArrs)) {
+      const base = ambienceBase(arrId);
+      if (seen.has(base)) continue;
+      seen.add(base);
+      // Canonical playable id: prefer the day variant; auto day/night swaps it.
+      const dayId = `${base}Day`, nightId = `${base}Night`;
+      const canonical = envArrs[dayId] ? dayId : (envArrs[nightId] ? nightId : (envArrs[base] ? base : arrId));
+      const m = ambienceMeta(canonical);
+      const custom = this.#cn("amb", base);
+      (ambByCat[m.cat] ??= []).push({
+        id: canonical, renameId: base, base, cat: m.cat,
+        name: custom || m.name, sub: custom ? m.name : (envArrs[canonical]?.label ?? ""),
+        icon: m.icon, active: !!env.arrangementId && base === curBase
       });
     }
 
-    // Weather.
-    const weatherItems = Object.keys(soundscapes.weather?.arrangements ?? {}).map(id => {
-      const base = WEATHER[id] ?? prettify(id);
-      const custom = this.#cn("weather", id);
-      return { id, base, name: custom || base, active: id === weather.arrangementId };
-    });
+    // Weather (optional).
+    const weatherItems = weatherEnabled
+      ? Object.keys(soundscapes.weather?.arrangements ?? {}).map(id => {
+          const base = WEATHER[id] ?? prettify(id);
+          const custom = this.#cn("weather", id);
+          return { id, base, name: custom || base, cat: "weather", active: id === weather.arrangementId };
+        })
+      : [];
+
+    // Soundboard (optional) — served from the instance cache.
+    const soundboard = sbEnabled ? (this.#soundboard ?? []).map(f => ({ src: f.src, name: f.name, cat: "sfx" })) : [];
 
     const musicGroups = orderedGroups(musicByCat);
     const ambienceGroups = orderedGroups(ambByCat);
     const counts = {
       music: musicGroups.reduce((n, g) => n + g.items.length, 0),
       amb: ambienceGroups.reduce((n, g) => n + g.items.length, 0),
-      weather: weatherItems.length
+      weather: weatherItems.length,
+      sfx: soundboard.length
     };
 
     // Active music soundscape — arrangement select + mood.
     const cur = soundscapes[music.soundscapeId];
-    // Scene/section variants only — the Calm/Tension toggle owns the tension ones.
     const arrangements = cur
       ? Object.entries(cur.arrangements ?? {})
           .filter(([id]) => !/tension/i.test(id))
@@ -117,9 +149,10 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       phase, phaseIcon: phase === "night" ? "fa-moon" : "fa-sun",
       autoDayNight: !!game.settings.get(MODULE_ID, "autoDayNight"),
       layout, layoutList: layout === "list", layoutGrid: layout === "grid",
-      tabMusic: this.#tab === "music", tabAmb: this.#tab === "amb", tabWeather: this.#tab === "weather",
+      weatherEnabled, sbEnabled,
+      tabMusic: tab === "music", tabAmb: tab === "amb", tabWeather: tab === "weather", tabSfx: tab === "sfx",
       counts,
-      musicGroups, ambienceGroups, weatherItems,
+      musicGroups, ambienceGroups, weatherItems, soundboard,
       // Music transport
       hasMusic: !!music.soundscapeId,
       nowMusic: music.soundscapeId ? (this.#cn("music", music.soundscapeId) || musicMeta(music.soundscapeId).name) : "—",
@@ -129,12 +162,15 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       tensionActive: onTension,
       // Ambience transport
       hasAmb: !!env.arrangementId,
-      nowAmb: env.arrangementId ? (this.#cn("amb", env.arrangementId) || prettify(env.arrangementId)) : "—",
+      nowAmb: env.arrangementId ? (this.#cn("amb", curBase) || ambienceMeta(env.arrangementId).name) : "—",
       // Weather transport
       hasWeather: !!weather.arrangementId,
       nowWeather: weather.arrangementId ? (this.#cn("weather", weather.arrangementId) || WEATHER[weather.arrangementId] || prettify(weather.arrangementId)) : "—",
-      musicVolume: this.#channelVolume("music"),
-      envVolume: this.#channelVolume("environment")
+      // Soundboard meta
+      sbPath: game.settings.get(MODULE_ID, "soundboardPath") || "",
+      sbLoading: sbEnabled && this.#sbBusy,
+      sbWarning: sbEnabled && !game.settings.get(MODULE_ID, "soundboardPath"),
+      sbEmpty: sbEnabled && !this.#sbBusy && this.#soundboard !== null && soundboard.length === 0 && !!game.settings.get(MODULE_ID, "soundboardPath")
     };
   }
 
@@ -143,8 +179,19 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const on = (sel, evt, fn) => el.querySelector(sel)?.addEventListener(evt, fn);
     const onAll = (sel, evt, fn) => el.querySelectorAll(sel).forEach(n => n.addEventListener(evt, fn));
 
-    // Live search filter (no re-render, so focus/typing is preserved). Scoped to
-    // the active zone so the count and headers reflect what you're looking at.
+    // Lazy-load the soundboard folder when enabled / when the path changes.
+    if (game.settings.get(MODULE_ID, "soundboardEnabled")) {
+      const path = game.settings.get(MODULE_ID, "soundboardPath") || "";
+      if (!this.#sbBusy && (this.#soundboard === null || this.#sbPath !== path)) {
+        this.#sbBusy = true; this.#sbPath = path;
+        Maestro.browseSoundboard()
+          .then(list => { this.#soundboard = list; })
+          .catch(() => { this.#soundboard = []; })
+          .finally(() => { this.#sbBusy = false; this.render(); });
+      }
+    }
+
+    // Live search filter (scoped to the active zone, no re-render).
     const applyFilter = () => {
       const q = (el.querySelector('[name="search"]')?.value ?? "").trim().toLowerCase();
       this.#search = q;
@@ -175,24 +222,27 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       this.render();
     });
 
-    // Rename pencil — opens a prompt; blank reverts to the built-in name.
+    // Soundboard refresh.
+    on('[data-sb-refresh]', "click", () => { this.#soundboard = null; this.render(); });
+
+    // Rename pencil — blank reverts to the built-in name.
     onAll('[data-rename]', "click", async e => {
       e.stopPropagation();
       const item = e.currentTarget.closest(".maestro-item");
       if (!item) return;
-      const { kind, id, name, default: base } = item.dataset;
-      await this.#promptRename(kind, id, name, base);
+      const { kind, id, renameId, name, default: base } = item.dataset;
+      await this.#promptRename(kind, renameId || id, name, base);
     });
 
-    // Item clicks (the row is the button now; the pencil stops propagation).
+    // Item clicks (the row is the button; the pencil stops propagation).
     onAll(".maestro-item", "click", e => {
-      const { kind, id } = e.currentTarget.dataset;
+      const { kind, id, src } = e.currentTarget.dataset;
       if (kind === "music") Maestro.play(id, { channel: "music" });
       else if (kind === "amb") Maestro.play("emberEnvironment", { channel: "environment", arrangementId: id });
       else if (kind === "weather") Maestro.play("weather", { channel: "weather", arrangementId: id });
+      else if (kind === "sfx") { Maestro.playOneShot(src); return; } // one-shot: no re-render
       this.render();
     });
-    // Keyboard activation for the role="button" rows.
     onAll(".maestro-item", "keydown", e => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); }
     });
@@ -211,15 +261,10 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       this.render();
     });
     on('[data-reroll]', "click", () => Maestro.rearrange("music"));
-    on('[data-morph]', "click", () => Maestro.openMorph?.());
 
     // Stops
     onAll('[data-stop]', "click", e => { Maestro.stop(e.currentTarget.dataset.stop); this.render(); });
     on('[data-stopall]', "click", async () => { for (const c of Maestro.CONST.CHANNELS) await Maestro.stop(c); this.render(); });
-
-    // Volumes
-    on('[name="music-volume"]', "change", e => this.#setVolume("music", e.target.value));
-    on('[name="environment-volume"]', "change", e => this.#setVolume("environment", e.target.value));
 
     applyFilter(); // re-apply preserved search after a re-render
   }
@@ -242,10 +287,5 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if (next === null || next === undefined) return; // cancelled
     await Maestro.setCustomName(kind, id, next); // onChange → refresh()
-  }
-
-  async #setVolume(channel, value) {
-    const sound = Maestro.sound?.channels?.[channel];
-    if (sound) await sound.update({ volume: Number(value) });
   }
 }
