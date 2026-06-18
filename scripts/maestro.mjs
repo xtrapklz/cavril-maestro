@@ -18,6 +18,7 @@
 import "./compat.mjs";
 import { EmberSoundscape } from "./engine.mjs";
 import { soundscapes } from "./soundscapes.mjs";
+import { MaestroDirector } from "./director.mjs";
 
 const MODULE_ID = "cavril-maestro";
 const CHANNELS = ["music", "environment", "weather", "effects"];
@@ -133,7 +134,10 @@ globalThis.Maestro = {
   rearrange(channel = "music") {
     const c = this.sound?.containers?.[channel];
     return c?.arrange?.();
-  }
+  },
+
+  /** Open the GM Director panel. */
+  openDirector() { return MaestroDirector.open(); }
 };
 
 /* ------------------------------------------------------------------ */
@@ -158,7 +162,10 @@ Hooks.once("init", () => {
     config: false,
     type: Object,
     default: {},
-    onChange: data => Maestro.sound?.onChange(data ?? {})
+    onChange: data => {
+      Maestro.sound?.onChange(data ?? {});
+      MaestroDirector.refresh();
+    }
   });
 
   console.log(`${MODULE_ID} | init`);
@@ -249,5 +256,27 @@ Hooks.once("ready", async () => {
                 `Try: Maestro.list() then Maestro.play("ordain")`);
   } catch (err) {
     console.error(`${MODULE_ID} | bootstrap failed:`, err);
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/*  Scene-controls button (best-effort; the macro/console always work) */
+/* ------------------------------------------------------------------ */
+
+Hooks.on("getSceneControlButtons", controls => {
+  if (!game.user?.isGM) return;
+  try {
+    const group = controls.tokens ?? controls.token ?? Object.values(controls ?? {})[0];
+    if (!group?.tools) return;
+    group.tools["maestro-director"] = {
+      name: "maestro-director",
+      title: "Maestro — Music Director",
+      icon: "fa-solid fa-compact-disc",
+      button: true,
+      onClick: () => Maestro.openDirector(),
+      onChange: () => Maestro.openDirector()
+    };
+  } catch (e) {
+    console.warn(`${MODULE_ID} | scene-control button skipped:`, e);
   }
 });

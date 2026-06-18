@@ -55,10 +55,11 @@ soundscape + mood picker.
 
 ## Status / roadmap
 
-- [x] **Stage 1** — engine + 40 soundscapes extracted, decoupled, loads on V14;
-      console control API + sidebar picker.
-- [ ] **Stage 2** — dedicated Director panel (glanceable soundscape ▸ arrangement
-      ▸ Calm/Tension ▸ per-channel volume).
+- [x] **Stage 1** — engine + 40 soundscapes extracted, decoupled, runs on V14;
+      console control API.
+- [x] **Stage 2** — Director panel (ApplicationV2): soundscape ▸ arrangement ▸
+      Calm/Tension ▸ per-channel volume + ambience. Open via the Token Controls
+      button or `Maestro.openDirector()`.
 - [ ] **Stage 3** — auto: per-scene default soundscape (scene flag) + a generic,
       system-agnostic combat→tension hook (Ember's creature-type combat map is
       currently dead code, retained for reference).
