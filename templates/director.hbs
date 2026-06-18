@@ -7,50 +7,82 @@
   {{/if}}
 
   <div class="maestro-toolbar">
-    <input type="search" name="search" placeholder="Search music, ambience, weather…" value="{{search}}" autocomplete="off">
-    <div class="mood-toggle" data-tooltip="Mood">
-      <button type="button" data-mood="calm" class="{{#if calmActive}}active{{/if}}" {{#unless hasMusic}}disabled{{/unless}} data-tooltip="Calm version"><i class="fa-solid fa-feather"></i></button>
-      <button type="button" data-mood="tension" class="{{#if tensionActive}}active{{/if}}" {{#unless canTension}}disabled{{/unless}} data-tooltip="Tense version"><i class="fa-solid fa-bolt"></i></button>
+    <input type="search" name="search" placeholder="Search this zone…" value="{{search}}" autocomplete="off">
+    <div class="seg layout-toggle" data-tooltip="Layout">
+      <button type="button" data-layout="list" class="{{#if layoutList}}active{{/if}}" data-tooltip="List"><i class="fa-solid fa-list"></i></button>
+      <button type="button" data-layout="grid" class="{{#if layoutGrid}}active{{/if}}" data-tooltip="Icon grid"><i class="fa-solid fa-table-cells-large"></i></button>
     </div>
   </div>
 
-  <div class="maestro-now">
-    <span class="np" data-tooltip="Now playing (music)"><i class="fa-solid fa-music"></i> {{nowMusic}}</span>
-    <select name="music-arrangement" data-tooltip="Scene / variant" {{#unless hasMusic}}disabled{{/unless}}>
-      {{#each arrangements}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-    </select>
-    <button type="button" data-reroll data-tooltip="Re-roll layers" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
-    <button type="button" data-morph data-tooltip="Open the morph pad" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-circle-nodes"></i></button>
-    <button type="button" data-stop="music" data-tooltip="Stop music"><i class="fa-solid fa-stop"></i></button>
+  <div class="maestro-tabs" role="tablist">
+    <button type="button" data-tab="music"   class="{{#if tabMusic}}active{{/if}}"><i class="fa-solid fa-music"></i> Music <span class="cnt">{{counts.music}}</span></button>
+    <button type="button" data-tab="amb"     class="{{#if tabAmb}}active{{/if}}"><i class="fa-solid fa-wind"></i> Ambience <span class="cnt">{{counts.amb}}</span></button>
+    <button type="button" data-tab="weather" class="{{#if tabWeather}}active{{/if}}"><i class="fa-solid fa-cloud-bolt"></i> Weather <span class="cnt">{{counts.weather}}</span></button>
   </div>
 
-  <div class="maestro-scroll">
-    <div class="sec-title"><i class="fa-solid fa-music"></i> Music</div>
-    {{#each musicGroups}}
-      <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
-      {{#each items}}
-      <button type="button" class="maestro-item {{#if active}}active{{/if}}" data-kind="music" data-id="{{id}}" data-name="{{name}}">
-        <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
-      </button>
+  {{!-- MUSIC ZONE --}}
+  <div class="maestro-zone {{#if tabMusic}}active{{/if}}" data-zone="music">
+    <div class="maestro-now">
+      <span class="np" data-tooltip="Now playing (music)"><i class="fa-solid fa-music"></i> {{nowMusic}}</span>
+      <div class="mood-toggle" data-tooltip="Mood">
+        <button type="button" data-mood="calm" class="{{#if calmActive}}active{{/if}}" {{#unless hasMusic}}disabled{{/unless}} data-tooltip="Calm version"><i class="fa-solid fa-feather"></i></button>
+        <button type="button" data-mood="tension" class="{{#if tensionActive}}active{{/if}}" {{#unless canTension}}disabled{{/unless}} data-tooltip="Tense version"><i class="fa-solid fa-bolt"></i></button>
+      </div>
+    </div>
+    <div class="maestro-controls">
+      <select name="music-arrangement" data-tooltip="Scene / variant" {{#unless hasMusic}}disabled{{/unless}}>
+        {{#each arrangements}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+      <button type="button" data-reroll data-tooltip="Re-roll layers" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
+      <button type="button" data-morph data-tooltip="Open the morph pad" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-circle-nodes"></i></button>
+      <button type="button" data-stop="music" data-tooltip="Stop music" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-stop"></i></button>
+    </div>
+    <div class="maestro-scroll layout-{{layout}}">
+      {{#each musicGroups}}
+        <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
+        {{#each items}}
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="music" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}">
+          <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
+          <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
+        </div>
+        {{/each}}
       {{/each}}
-    {{/each}}
+    </div>
+  </div>
 
-    <div class="sec-title"><i class="fa-solid fa-wind"></i> Ambience</div>
-    {{#each ambienceGroups}}
-      <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
-      {{#each items}}
-      <button type="button" class="maestro-item {{#if active}}active{{/if}}" data-kind="amb" data-id="{{id}}" data-name="{{name}}">
-        <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
-      </button>
+  {{!-- AMBIENCE ZONE --}}
+  <div class="maestro-zone {{#if tabAmb}}active{{/if}}" data-zone="amb">
+    <div class="maestro-now">
+      <span class="np" data-tooltip="Now playing (ambience)"><i class="fa-solid fa-wind"></i> {{nowAmb}}</span>
+      <button type="button" data-stop="environment" data-tooltip="Stop ambience" {{#unless hasAmb}}disabled{{/unless}}><i class="fa-solid fa-stop"></i></button>
+    </div>
+    <div class="maestro-scroll layout-{{layout}}">
+      {{#each ambienceGroups}}
+        <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
+        {{#each items}}
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="amb" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}">
+          <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
+          <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
+        </div>
+        {{/each}}
       {{/each}}
-    {{/each}}
+    </div>
+  </div>
 
-    <div class="sec-title"><i class="fa-solid fa-cloud-bolt"></i> Weather</div>
-    {{#each weatherItems}}
-    <button type="button" class="maestro-item {{#if active}}active{{/if}}" data-kind="weather" data-id="{{id}}" data-name="{{name}}">
-      <i class="fa-solid fa-cloud"></i><span class="nm">{{name}}</span>
-    </button>
-    {{/each}}
+  {{!-- WEATHER ZONE --}}
+  <div class="maestro-zone {{#if tabWeather}}active{{/if}}" data-zone="weather">
+    <div class="maestro-now">
+      <span class="np" data-tooltip="Now playing (weather)"><i class="fa-solid fa-cloud-bolt"></i> {{nowWeather}}</span>
+      <button type="button" data-stop="weather" data-tooltip="Stop weather" {{#unless hasWeather}}disabled{{/unless}}><i class="fa-solid fa-stop"></i></button>
+    </div>
+    <div class="maestro-scroll layout-{{layout}}">
+      {{#each weatherItems}}
+      <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="weather" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}">
+        <i class="fa-solid fa-cloud"></i><span class="nm">{{name}}</span>
+        <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
+      </div>
+      {{/each}}
+    </div>
   </div>
 
   <div class="maestro-foot">

@@ -141,7 +141,36 @@ globalThis.Maestro = {
   openDirector() { return MaestroDirector.open(); },
 
   /** Open the radial Morph Pad for the active music soundscape. */
-  openMorph() { return MaestroMorphPad.open(); }
+  openMorph() { return MaestroMorphPad.open(); },
+
+  /* ----- Custom display names (GM-authored, world-shared) ----- */
+
+  /**
+   * The custom name a GM has assigned to a cue, or "" if none.
+   * @param {"music"|"amb"|"weather"} kind
+   * @param {string} id  soundscape id / arrangement id
+   * @returns {string}
+   */
+  customName(kind, id) {
+    const map = game.settings.get(MODULE_ID, "customNames") || {};
+    return map[`${kind}:${id}`] || "";
+  },
+
+  /**
+   * Assign (or clear, when name is blank) a custom display name for a cue.
+   * Stored in a world setting so every client sees the same labels.
+   * @param {"music"|"amb"|"weather"} kind
+   * @param {string} id
+   * @param {string} name  blank/whitespace reverts to the built-in name
+   */
+  async setCustomName(kind, id, name) {
+    if (!game.user.isGM) return ui.notifications?.warn("Maestro: only a GM can rename cues.");
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "customNames") || {});
+    const key = `${kind}:${id}`;
+    const v = String(name ?? "").trim();
+    if (v) map[key] = v; else delete map[key];
+    return game.settings.set(MODULE_ID, "customNames", map);
+  }
 };
 
 /* ------------------------------------------------------------------ */
@@ -170,6 +199,23 @@ Hooks.once("init", () => {
       Maestro.sound?.onChange(data ?? {});
       MaestroDirector.refresh();
     }
+  });
+
+  // GM-authored custom display names for cues ("kind:id" → label). Shared to all.
+  game.settings.register(MODULE_ID, "customNames", {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {},
+    onChange: () => MaestroDirector.refresh()
+  });
+
+  // Per-user Director layout preference (list vs icon grid).
+  game.settings.register(MODULE_ID, "gridLayout", {
+    scope: "client",
+    config: false,
+    type: Boolean,
+    default: false
   });
 
   game.settings.register(MODULE_ID, "crossfadeSeconds", {
