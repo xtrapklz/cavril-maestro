@@ -60,12 +60,18 @@ export class MaestroMorphPad extends HandlebarsApplicationMixin(ApplicationV2) {
       };
     });
     const act = anchors.find(a => a.active);
+    const vol = Math.max(0, Math.min(1, Maestro.sound?.channels?.music?.volume ?? 1));
+    let puckX = CX, puckY = CY;     // centre = silent; place puck along the active anchor at current volume
+    if (act) {
+      const ang = Math.atan2(act.y - CY, act.x - CX);
+      puckX = +(CX + Math.cos(ang) * R * vol).toFixed(1);
+      puckY = +(CY + Math.sin(ang) * R * vol).toFixed(1);
+    }
     return {
       name: musicMeta(music.soundscapeId).name,
       soundscapeId: music.soundscapeId,
       anchors,
-      puckX: act?.x ?? CX,
-      puckY: act?.y ?? CY
+      puckX, puckY
     };
   }
 
@@ -78,7 +84,7 @@ export class MaestroMorphPad extends HandlebarsApplicationMixin(ApplicationV2) {
       el: g, id: g.dataset.id, x: +g.dataset.x, y: +g.dataset.y
     }));
     const soundscapeId = svg.dataset.soundscape;
-    let dragging = false, lastId = null, timer = null;
+    let dragging = false, lastId = null, timer = null, lastVol = null;
 
     const toSvg = ev => {
       const rect = svg.getBoundingClientRect();
@@ -94,14 +100,21 @@ export class MaestroMorphPad extends HandlebarsApplicationMixin(ApplicationV2) {
     const update = (x, y) => {
       puck.setAttribute("cx", x.toFixed(1));
       puck.setAttribute("cy", y.toFixed(1));
+      const dx = x - CX, dy = y - CY;
+      const r = Math.min(1, Math.hypot(dx, dy) / R);     // radius → volume (0 centre, 1 edge)
+      lastVol = r;
+      const c = Maestro.sound?.containers?.music;
+      if (c) c.volume = r;                                // live gain — no document write mid-drag
+      // Nearest arrangement by ANGLE, so circling the rim swaps arrangements.
+      const pa = Math.atan2(dy, dx);
       let best = null, bestD = Infinity;
       for (const a of anchors) {
-        const d = Math.hypot(a.x - x, a.y - y);
-        const w = Math.max(0, 1 - d / (2 * R));
-        a.el.style.opacity = (0.3 + 0.7 * w).toFixed(2);
+        const aa = Math.atan2(a.y - CY, a.x - CX);
+        let d = Math.abs(pa - aa); if (d > Math.PI) d = (2 * Math.PI) - d;
+        a.el.style.opacity = (0.3 + 0.7 * Math.max(0, 1 - d / Math.PI) * (0.4 + 0.6 * r)).toFixed(2);
         if (d < bestD) { bestD = d; best = a; }
       }
-      if (best && best.id !== lastId) {
+      if (r > 0.12 && best && best.id !== lastId) {       // ignore angle near the silent centre
         lastId = best.id;
         anchors.forEach(a => a.el.classList.toggle("active", a === best));
         clearTimeout(timer);
@@ -113,6 +126,8 @@ export class MaestroMorphPad extends HandlebarsApplicationMixin(ApplicationV2) {
       dragging = false;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      // Persist the chosen volume to the channel so it sticks and syncs to players.
+      if (lastVol != null) Maestro.sound?.channels?.music?.update({ volume: lastVol })?.catch?.(() => {});
     };
     svg.addEventListener("pointerdown", ev => {
       dragging = true;

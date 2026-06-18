@@ -38,13 +38,13 @@ export const MUSIC = {
   raiderCombat:       { name: "Raider Combat",            cat: "combat", icon: "fa-solid fa-shield-halved" },
   undeadCombat:       { name: "Undead Combat",            cat: "combat", icon: "fa-solid fa-skull" },
 
-  arcturianTown:      { name: "Town — Day & Night",       cat: "settlement", icon: "fa-solid fa-house-chimney" },
-  ordain:             { name: "Harbor Town",              cat: "settlement", icon: "fa-solid fa-anchor" },
+  arcturianTown:      { name: "Large City",               cat: "settlement", icon: "fa-solid fa-city" },
+  ordain:             { name: "Coastal Town",             cat: "settlement", icon: "fa-solid fa-anchor" },
   gravensRestMusic:   { name: "Somber Town",              cat: "settlement", icon: "fa-solid fa-place-of-worship" },
-  seawall:            { name: "Coastal Fort",             cat: "settlement", icon: "fa-solid fa-water" },
+  seawall:            { name: "Coastal Fortress",         cat: "settlement", icon: "fa-solid fa-water" },
   houseBastilla:      { name: "Noble Manor",              cat: "settlement", icon: "fa-solid fa-chess-rook" },
   marlstoneGala:      { name: "Grand Gala / Ballroom",    cat: "settlement", icon: "fa-solid fa-champagne-glasses" },
-  aedirTheme:         { name: "Garrison / Fortress",      cat: "settlement", icon: "fa-solid fa-tower-observation" },
+  aedirTheme:         { name: "Frontier Garrison",        cat: "settlement", icon: "fa-solid fa-tower-observation" },
 
   arctusPlateauMusic: { name: "Plateau & Plains",         cat: "wild", icon: "fa-solid fa-mountain-sun" },
   forestOfStoneExploration: { name: "Petrified Forest",   cat: "wild", icon: "fa-solid fa-tree" },
