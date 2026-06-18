@@ -222,6 +222,11 @@ Hooks.once("ready", async () => {
   try {
     resolveAssetPaths();
 
+    if ( !game.settings.get(MODULE_ID, "assetBasePath") ) {
+      console.warn(`${MODULE_ID} | Audio Asset Base Path is not set — audio files will 404 until you set it (module settings) and reload.`);
+      if ( game.user.isGM ) ui.notifications?.warn("Cavril Maestro: set the Audio Asset Base Path in module settings, then reload.");
+    }
+
     const ok = await ensureChannels();
     if (!ok) {
       console.warn(`${MODULE_ID} | ready — channels not fully provisioned; playback disabled this session.`);

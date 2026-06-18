@@ -1074,7 +1074,8 @@ class EmberSoundscape {
 
     // Downstream callback actions
     ui.playlists.render();
-    await scene._onSoundscapeActivate();
+    // Ember scenes defined a downstream hook here; core scenes do not. Guard for standalone use.
+    if ( typeof scene?._onSoundscapeActivate === "function" ) await scene._onSoundscapeActivate();
   }
 
   /* -------------------------------------------- */
