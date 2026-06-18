@@ -1,97 +1,83 @@
-/* Cavril Maestro — Director panel */
+/* Cavril Maestro — Director panel (v0.3) */
 
 .maestro-director .window-content {
-  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  min-height: 0;
 }
 
 .maestro-director-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.maestro-director .channel {
-  border: 1px solid var(--color-border-light-tertiary, #4b4a44);
-  border-radius: 6px;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.12);
-}
-
-.maestro-director .channel > header {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  opacity: 0.7;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.maestro-director .row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-.maestro-director .row:last-child { margin-bottom: 0; }
-
-.maestro-director select { flex: 1; min-width: 0; }
-
-.maestro-director .row > button,
-.maestro-director footer button {
-  flex: 0 0 auto;
-  width: 30px;
-  height: 28px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Calm / Tension segmented toggle */
-.maestro-director .mood-toggle {
-  display: flex;
-  margin-bottom: 8px;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid var(--color-border-dark, #1e1e1e);
-}
-.maestro-director .mood-toggle button {
   flex: 1;
-  border: 0;
-  border-radius: 0;
-  height: 30px;
-  background: rgba(0, 0, 0, 0.2);
-  opacity: 0.8;
+  min-height: 0;
+  gap: 6px;
+  padding: 8px;
 }
+
+/* Toolbar: search + mood toggle */
+.maestro-director .maestro-toolbar { display: flex; gap: 6px; align-items: center; }
+.maestro-director .maestro-toolbar input[type="search"] { flex: 1; min-width: 0; }
+
+.maestro-director .mood-toggle { display: flex; border-radius: 6px; overflow: hidden; border: 1px solid var(--color-border-dark, #1e1e1e); flex: 0 0 auto; }
+.maestro-director .mood-toggle button { border: 0; border-radius: 0; width: 34px; height: 28px; background: rgba(0,0,0,0.2); opacity: 0.75; }
 .maestro-director .mood-toggle button + button { border-left: 1px solid var(--color-border-dark, #1e1e1e); }
 .maestro-director .mood-toggle button.active { opacity: 1; }
-.maestro-director .mood-toggle button[data-mood="calm"].active { background: #2f5d8a; color: #fff; text-shadow: none; }
-.maestro-director .mood-toggle button[data-mood="tension"].active { background: #9b3030; color: #fff; text-shadow: none; }
+.maestro-director .mood-toggle button[data-mood="calm"].active { background: #2f5d8a; color: #fff; }
+.maestro-director .mood-toggle button[data-mood="tension"].active { background: #9b3030; color: #fff; }
 
-.maestro-director .volume input[type="range"] { flex: 1; min-width: 0; }
-.maestro-director .volume > i { opacity: 0.6; }
+/* Now-playing bar */
+.maestro-director .maestro-now { display: flex; gap: 6px; align-items: center; }
+.maestro-director .maestro-now .np { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; }
+.maestro-director .maestro-now select { flex: 0 1 130px; min-width: 0; }
+.maestro-director .maestro-now button { flex: 0 0 auto; width: 28px; height: 26px; }
 
-.maestro-director footer {
-  display: flex;
-  justify-content: flex-end;
+/* Scrolling list */
+.maestro-director .maestro-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid var(--color-border-light-tertiary, #4b4a44);
+  border-radius: 6px;
+  padding: 4px;
+  background: rgba(0,0,0,0.12);
 }
-.maestro-director footer button {
-  width: auto;
-  padding: 0 10px;
-  gap: 6px;
+
+.maestro-director .sec-title {
+  position: sticky; top: -4px;
+  background: var(--color-bg, #1b1c22);
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  padding: 5px 4px; margin: 2px 0; opacity: .85;
+  display: flex; align-items: center; gap: 6px;
+  border-bottom: 1px solid var(--color-border-dark, #1e1e1e);
 }
+.maestro-director .grp {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .05em; opacity: .55;
+  padding: 6px 6px 2px; display: flex; align-items: center; gap: 5px;
+}
+
+.maestro-director .maestro-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 5px 8px; border: 0; border-radius: 4px; background: transparent;
+  text-align: left; cursor: pointer; line-height: 1.2;
+}
+.maestro-director .maestro-item:hover { background: rgba(255,255,255,0.07); }
+.maestro-director .maestro-item.active { background: var(--color-shadow-primary, #ff6400); color: #fff; }
+.maestro-director .maestro-item.active .sub { color: rgba(255,255,255,0.7); }
+.maestro-director .maestro-item > i { flex: 0 0 16px; text-align: center; opacity: .85; }
+.maestro-director .maestro-item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maestro-director .maestro-item .sub { font-size: 10px; opacity: .45; white-space: nowrap; }
+
+.maestro-director .hidden { display: none !important; }
+
+/* Footer: volumes + stop all */
+.maestro-director .maestro-foot { display: flex; align-items: center; gap: 6px; }
+.maestro-director .maestro-foot i { opacity: .6; flex: 0 0 auto; }
+.maestro-director .maestro-foot input[type="range"] { flex: 1; min-width: 0; }
+.maestro-director .maestro-foot button { flex: 0 0 auto; width: 30px; height: 28px; }
 
 .maestro-director .maestro-warn {
-  background: #5a1d1d;
-  color: #ffe9e9;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  line-height: 1.3;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  background: #5a1d1d; color: #ffe9e9; padding: 6px 8px; border-radius: 4px;
+  font-size: 11px; line-height: 1.3; display: flex; align-items: center; gap: 6px;
 }

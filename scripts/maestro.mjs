@@ -16,7 +16,7 @@
  */
 
 import "./compat.mjs";
-import { EmberSoundscape } from "./engine.mjs";
+import { EmberSoundscape, EmberAudioArrangement } from "./engine.mjs";
 import { soundscapes } from "./soundscapes.mjs";
 import { MaestroDirector } from "./director.mjs";
 
@@ -167,6 +167,18 @@ Hooks.once("init", () => {
       MaestroDirector.refresh();
     }
   });
+
+  game.settings.register(MODULE_ID, "crossfadeSeconds", {
+    name: "Crossfade Length (seconds)",
+    hint: "Minimum fade applied to every clip so transitions and loops are seamless. 0 = hard cuts. Reload after changing.",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 0.8,
+    range: { min: 0, max: 5, step: 0.1 },
+    onChange: v => { EmberAudioArrangement.FADE_FLOOR = Number(v) || 0; }
+  });
+  EmberAudioArrangement.FADE_FLOOR = Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0;
 
   console.log(`${MODULE_ID} | init`);
 });

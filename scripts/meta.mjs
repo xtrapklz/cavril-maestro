@@ -1,0 +1,119 @@
+/**
+ * Cavril Maestro — display metadata (names, categories, icons).
+ * A presentation layer over the raw soundscape ids. The engine keeps using the
+ * real ids and file paths; this only changes what the Director shows.
+ *
+ *  - Music soundscapes get curated generic names + category + icon (CURATED).
+ *  - The 110 ambience arrangements + 6 weather states are auto-named from their
+ *    ids (prettify) and categorised by keyword (ambienceCategory / ambienceIcon).
+ *  - Original Ember ids are shown as subtitles in the UI.
+ */
+
+/* ---- Categories (label + FontAwesome icon) ---- */
+export const CATEGORIES = {
+  combat:     { label: "Combat",            icon: "fa-solid fa-burst" },
+  settlement: { label: "Towns & Settlements", icon: "fa-solid fa-city" },
+  wild:       { label: "Wilderness",        icon: "fa-solid fa-tree" },
+  coast:      { label: "Coast & Sea",       icon: "fa-solid fa-water" },
+  dungeon:    { label: "Caves & Dungeons",  icon: "fa-solid fa-dungeon" },
+  sacred:     { label: "Sacred & Arcane",   icon: "fa-solid fa-wand-magic-sparkles" },
+  folk:       { label: "Folk & Social",     icon: "fa-solid fa-masks-theater" },
+  theme:      { label: "Themes & Moods",    icon: "fa-solid fa-compact-disc" },
+  weather:    { label: "Weather",           icon: "fa-solid fa-cloud-bolt" },
+  ambience:   { label: "Ambience",          icon: "fa-solid fa-wind" }
+};
+
+/* ---- Curated metadata for the 38 music soundscapes ---- */
+export const MUSIC = {
+  abyssalCombat:      { name: "Abyssal / Demonic Combat", cat: "combat", icon: "fa-solid fa-fire-flame-curved" },
+  beastCombat:        { name: "Beast Combat",             cat: "combat", icon: "fa-solid fa-paw" },
+  celestialCombat:    { name: "Celestial Combat",         cat: "combat", icon: "fa-solid fa-sun" },
+  constructCombat:    { name: "Construct Combat",         cat: "combat", icon: "fa-solid fa-gears" },
+  elementalCombat:    { name: "Elemental Combat",         cat: "combat", icon: "fa-solid fa-bolt" },
+  illusoryCombat:     { name: "Fey / Illusory Combat",    cat: "combat", icon: "fa-solid fa-wand-sparkles" },
+  monstrosityCombat:  { name: "Monstrosity Combat",       cat: "combat", icon: "fa-solid fa-spaghetti-monster-flying" },
+  mutagenicCombat:    { name: "Aberrant / Dragon Combat", cat: "combat", icon: "fa-solid fa-dragon" },
+  oozeCombat:         { name: "Ooze Combat",              cat: "combat", icon: "fa-solid fa-droplet" },
+  pirateCombat:       { name: "Pirate / Bandit Combat",   cat: "combat", icon: "fa-solid fa-skull-crossbones" },
+  raiderCombat:       { name: "Raider Combat",            cat: "combat", icon: "fa-solid fa-shield-halved" },
+  undeadCombat:       { name: "Undead Combat",            cat: "combat", icon: "fa-solid fa-skull" },
+
+  arcturianTown:      { name: "Town — Day & Night",       cat: "settlement", icon: "fa-solid fa-house-chimney" },
+  ordain:             { name: "Harbor Town",              cat: "settlement", icon: "fa-solid fa-anchor" },
+  gravensRestMusic:   { name: "Somber Town",              cat: "settlement", icon: "fa-solid fa-place-of-worship" },
+  seawall:            { name: "Coastal Fort",             cat: "settlement", icon: "fa-solid fa-water" },
+  houseBastilla:      { name: "Noble Manor",              cat: "settlement", icon: "fa-solid fa-chess-rook" },
+  marlstoneGala:      { name: "Grand Gala / Ballroom",    cat: "settlement", icon: "fa-solid fa-champagne-glasses" },
+  aedirTheme:         { name: "Garrison / Fortress",      cat: "settlement", icon: "fa-solid fa-tower-observation" },
+
+  arctusPlateauMusic: { name: "Plateau & Plains",         cat: "wild", icon: "fa-solid fa-mountain-sun" },
+  forestOfStoneExploration: { name: "Petrified Forest",   cat: "wild", icon: "fa-solid fa-tree" },
+  kadisosExploration: { name: "Mountain Wilds",           cat: "wild", icon: "fa-solid fa-mountain" },
+
+  ancientRuins:       { name: "Ancient Ruins",            cat: "dungeon", icon: "fa-solid fa-archway" },
+  mysticalDungeon:    { name: "Mystical Dungeon",         cat: "dungeon", icon: "fa-solid fa-dungeon" },
+  pitTrap:            { name: "Danger / Trap Sting",      cat: "dungeon", icon: "fa-solid fa-triangle-exclamation" },
+
+  arcaneTheme:        { name: "Arcane / Magical",         cat: "sacred", icon: "fa-solid fa-hat-wizard" },
+  templeCindaric:     { name: "Fire Temple",              cat: "sacred", icon: "fa-solid fa-fire" },
+  templeWater:        { name: "Water Shrine",             cat: "sacred", icon: "fa-solid fa-place-of-worship" },
+  cosmosMusic:        { name: "Cosmic / Astral",          cat: "sacred", icon: "fa-solid fa-meteor" },
+
+  arcturianFolk:      { name: "Folk Festival",            cat: "folk", icon: "fa-solid fa-people-group" },
+  ordaniFolk:         { name: "Rustic Folk",              cat: "folk", icon: "fa-solid fa-guitar" },
+  bardTroupe:         { name: "Bard / Tavern",            cat: "folk", icon: "fa-solid fa-mug-hot" },
+  solemnFolk:         { name: "Funeral / Mourning",       cat: "folk", icon: "fa-solid fa-dove" },
+
+  ankaristTheme:      { name: "Ominous Theme",            cat: "theme", icon: "fa-solid fa-eye" },
+  lylaTheme:          { name: "Wistful Theme",            cat: "theme", icon: "fa-solid fa-feather" },
+  sinTheme:           { name: "Sinister / Villain Theme", cat: "theme", icon: "fa-solid fa-mask" },
+  seydiriTheme:       { name: "Sunken Depths",            cat: "theme", icon: "fa-solid fa-water-ladder" },
+  innerRealmsMusic:   { name: "Ethereal / Dreamlike",     cat: "theme", icon: "fa-solid fa-cloud-moon" }
+};
+
+/* ---- Weather states ---- */
+export const WEATHER = {
+  clear:      "Clear",
+  rainLight:  "Light Rain",
+  rainNormal: "Rain",
+  rainStorm:  "Thunderstorm",
+  arcaneFog:  "Arcane Fog",
+  mayisStorm: "Magical Storm"
+};
+
+/* ---- Helpers ---- */
+
+/** Turn a camelCase / lore id into a readable title, tagging Day/Night/Tension. */
+export function prettify(id = "") {
+  let s = String(id)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Za-z])(\d+)/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\b\w/g, c => c.toUpperCase());
+  s = s.replace(/\bTension\b/gi, "(Tense)")
+       .replace(/\b(Day|Night|Dawn|Dusk)\b/g, "($1)");
+  return s;
+}
+
+const AMBIENCE_RULES = [
+  [/ocean|tidal|ship|wreck|seawall|dock|strand|sarin|waterworks|pools/i, "coast"],
+  [/cave|cavern|mine|noxious|fogbound|inkaro|mycelian|undergroun|burial|grave|kaleidoscope|quarry|scrapyard|expanse|primordial|bastion|clockwork|waterworks/i, "dungeon"],
+  [/temple|shrine|sanctuary|archive|spellbreaker|tower|magic|arcane|signara|rejarh|cindaric|nite|ruins/i, "sacred"],
+  [/docks|ordain|arcturel|helkas|nain|gravensrest|hideout|embersbounty|stadium|interior|gala|marlstone|corpin|steeds/i, "settlement"],
+  [/jungle|forest|grove|wood|bloodwood|amerasp|skybrush|fields|flats|valley|plains|redrak|rustvar|wedgeland|splinter|canyon|bluff|teeth|mountain|spire|dripstone|stone|farm|yakoshta|cauldron|camp|vista|pit/i, "wild"]
+];
+
+export function ambienceCategory(id = "") {
+  for (const [re, cat] of AMBIENCE_RULES) if (re.test(id)) return cat;
+  return "ambience";
+}
+
+export function ambienceIcon(id = "") {
+  return CATEGORIES[ambienceCategory(id)]?.icon ?? CATEGORIES.ambience.icon;
+}
+
+/** Display info for a music soundscape id. */
+export function musicMeta(id = "") {
+  return MUSIC[id] ?? { name: prettify(id), cat: "theme", icon: CATEGORIES.theme.icon };
+}
