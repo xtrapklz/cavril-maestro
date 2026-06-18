@@ -216,7 +216,7 @@ class EmberSoundOrchestration extends foundry.audio.Sound {
    * @returns {Promise<Object<number>>}    A promise which resolves to the arranged layers and volumes
    */
   async arrange(group) {
-    if ( this.arrangement.timing.arranged === false ) return {};
+    if ( !this.arrangement || (this.arrangement.timing.arranged === false) ) return {};
     let layers = {};
     let fadeOutOthers = false;
     if ( CONFIG.debug.audio ) console.groupCollapsed(`Ember | Rearranging ${this.channel} ${this.arrangement}`);
@@ -835,7 +835,7 @@ class EmberAudioArrangement extends foundry.abstract.DataModel {
         Object.assign(segment, {path: segmentSoundscape.src}, segmentSoundscape.segments[layerId]);
       }
       const layer = Object.assign({id: layerId}, segment, typeof config === "number" ? {volume: config} : config);
-      layer.src = [layer.path ?? soundscape.src, layer.src].filterJoin("/");
+      layer.src = [layer.path ?? soundscape.src, layer.src].filterJoin("/").replace(/([^:]\/)\/+/g, "$1");
       layer.group ??= defaultGroup;
       delete layer.path;
       return layer;
