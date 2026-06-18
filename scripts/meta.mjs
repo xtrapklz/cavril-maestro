@@ -117,3 +117,27 @@ export function ambienceIcon(id = "") {
 export function musicMeta(id = "") {
   return MUSIC[id] ?? { name: prettify(id), cat: "theme", icon: CATEGORIES.theme.icon };
 }
+
+/** True if the soundscape has any tension-flavoured arrangement. */
+export function hasTension(ss) {
+  return Object.keys(ss?.arrangements ?? {}).some(id => /tension/i.test(id));
+}
+
+/**
+ * Find the calm/tension counterpart arrangement for the current one, matching
+ * the current arrangement's "base" (so Docks-Day ↔ Docks-Tension, not some other area).
+ * @returns {string|null} arrangement id, or null if none fits.
+ */
+export function moodVariant(ss, curArrId, mood) {
+  const ids = Object.keys(ss?.arrangements ?? {});
+  if (!ids.length) return null;
+  const isTen = id => /tension/i.test(id);
+  const base = id => id.replace(/(calm|tension|day|night|dawn|dusk)$/i, "");
+  const b = base(curArrId || ids[0]);
+  if (mood === "tension") {
+    return ids.find(id => isTen(id) && base(id) === b) || ids.find(isTen) || null;
+  }
+  const same = ids.filter(id => !isTen(id) && base(id) === b);
+  return same.find(id => /day$/i.test(id)) || same.find(id => base(id) === id) || same[0]
+      || ids.find(id => !isTen(id)) || null;
+}

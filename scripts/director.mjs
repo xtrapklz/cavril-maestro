@@ -6,7 +6,7 @@
  */
 
 import { soundscapes } from "./soundscapes.mjs";
-import { CATEGORIES, WEATHER, prettify, ambienceCategory, ambienceIcon, musicMeta } from "./meta.mjs";
+import { CATEGORIES, WEATHER, prettify, ambienceCategory, ambienceIcon, musicMeta, hasTension, moodVariant } from "./meta.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const MODULE_ID = "cavril-maestro";
@@ -75,10 +75,13 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // Active music soundscape — arrangement select + mood
     const cur = soundscapes[music.soundscapeId];
+    // Scene/section variants only — the Calm/Tension toggle owns the tension ones.
     const arrangements = cur
-      ? Object.entries(cur.arrangements ?? {}).map(([id, v]) => ({ id, label: v?.label ?? prettify(id), selected: id === music.arrangementId }))
+      ? Object.entries(cur.arrangements ?? {})
+          .filter(([id]) => !/tension/i.test(id))
+          .map(([id, v]) => ({ id, label: v?.label ?? prettify(id), selected: id === music.arrangementId }))
       : [];
-    const mood = Maestro.sound?.mood ?? "calm";
+    const onTension = !!music.arrangementId && /tension/i.test(music.arrangementId);
 
     return {
       ready: !!Maestro.sound,
@@ -90,8 +93,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       hasMusic: !!music.soundscapeId,
       nowMusic: music.soundscapeId ? musicMeta(music.soundscapeId).name : "—",
       arrangements,
-      calmActive: mood === "calm",
-      tensionActive: mood === "tension",
+      canTension: cur ? hasTension(cur) : false,
+      calmActive: !!music.soundscapeId && !onTension,
+      tensionActive: onTension,
       musicVolume: this.#channelVolume("music"),
       envVolume: this.#channelVolume("environment")
     };
@@ -133,7 +137,14 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const id = Maestro.sound?.getActiveConfiguration?.().music?.soundscapeId;
       if (id) Maestro.play(id, { channel: "music", arrangementId: e.target.value });
     });
-    onAll('[data-mood]', "click", e => { Maestro.sound?.setMood(e.currentTarget.dataset.mood); this.render(); });
+    onAll('[data-mood]', "click", e => {
+      const mood = e.currentTarget.dataset.mood;
+      const m = Maestro.sound?.getActiveConfiguration?.().music ?? {};
+      if (!m.soundscapeId) return;
+      const target = moodVariant(soundscapes[m.soundscapeId], m.arrangementId, mood);
+      if (target) Maestro.play(m.soundscapeId, { channel: "music", arrangementId: target });
+      this.render();
+    });
     on('[data-reroll]', "click", () => Maestro.rearrange("music"));
 
     // Stops

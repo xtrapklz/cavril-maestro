@@ -9,14 +9,14 @@
   <div class="maestro-toolbar">
     <input type="search" name="search" placeholder="Search music, ambience, weather…" value="{{search}}" autocomplete="off">
     <div class="mood-toggle" data-tooltip="Mood">
-      <button type="button" data-mood="calm" class="{{#if calmActive}}active{{/if}}" data-tooltip="Calm"><i class="fa-solid fa-feather"></i></button>
-      <button type="button" data-mood="tension" class="{{#if tensionActive}}active{{/if}}" data-tooltip="Tension"><i class="fa-solid fa-bolt"></i></button>
+      <button type="button" data-mood="calm" class="{{#if calmActive}}active{{/if}}" {{#unless hasMusic}}disabled{{/unless}} data-tooltip="Calm version"><i class="fa-solid fa-feather"></i></button>
+      <button type="button" data-mood="tension" class="{{#if tensionActive}}active{{/if}}" {{#unless canTension}}disabled{{/unless}} data-tooltip="Tense version"><i class="fa-solid fa-bolt"></i></button>
     </div>
   </div>
 
   <div class="maestro-now">
     <span class="np" data-tooltip="Now playing (music)"><i class="fa-solid fa-music"></i> {{nowMusic}}</span>
-    <select name="music-arrangement" data-tooltip="Arrangement" {{#unless hasMusic}}disabled{{/unless}}>
+    <select name="music-arrangement" data-tooltip="Scene / variant" {{#unless hasMusic}}disabled{{/unless}}>
       {{#each arrangements}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
     </select>
     <button type="button" data-reroll data-tooltip="Re-roll layers" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
