@@ -30,10 +30,18 @@
 .maestro-director .seg button.active,
 .maestro-director .mood-toggle button.active { opacity: 1; }
 .maestro-director .layout-toggle button.active { background: #44485a; color: #fff; }
-.maestro-director .mood-toggle button[data-mood="calm"].active { background: #2f5d8a; color: #fff; }
-.maestro-director .mood-toggle button[data-mood="tension"].active { background: #9b3030; color: #fff; }
-/* Mood buttons are prominent: auto width, labelled, taller */
-.maestro-director .mood-toggle button { width: auto; min-width: 70px; height: 34px; padding: 0 14px; gap: 6px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+/* Mood: two big, SEPARATE buttons (no segmented divider) on their own row */
+.maestro-director .mood-toggle { display: flex; gap: 8px; border: 0; overflow: visible; border-radius: 0; flex: 0 0 auto; }
+.maestro-director .mood-toggle .mood-btn {
+  flex: 1; width: auto; height: 44px; padding: 0 16px; gap: 8px; font-size: 15px; font-weight: 700;
+  border: 1px solid var(--color-border-dark, #1e1e1e); border-radius: 8px; background: rgba(0,0,0,0.22);
+  opacity: .8; display: inline-flex; align-items: center; justify-content: center;
+}
+.maestro-director .mood-toggle .mood-btn + .mood-btn { border-left: 1px solid var(--color-border-dark, #1e1e1e); }
+.maestro-director .mood-toggle .mood-btn:hover:not(:disabled) { opacity: 1; }
+.maestro-director .mood-toggle .mood-btn.active { opacity: 1; }
+.maestro-director .mood-toggle .mood-btn.calm.active { background: #2f5d8a; color: #fff; border-color: #4f7fb5; }
+.maestro-director .mood-toggle .mood-btn.tension.active { background: #9b3030; color: #fff; border-color: #c25a5a; }
 
 /* Day/night phase indicator */
 .maestro-director .phase-chip {
@@ -113,6 +121,16 @@
 .maestro-director .maestro-item:hover .maestro-rename { opacity: .55; }
 .maestro-director .maestro-rename:hover { opacity: 1 !important; background: rgba(255,255,255,0.15); }
 
+/* Favorite star — dim on hover, gold + always visible when favorited */
+.maestro-director .maestro-fav {
+  flex: 0 0 auto; border: 0; background: transparent; color: inherit;
+  width: 22px; height: 22px; border-radius: 4px; cursor: pointer; opacity: 0;
+  font-size: 11px; line-height: 1; padding: 0;
+}
+.maestro-director .maestro-item:hover .maestro-fav { opacity: .4; }
+.maestro-director .maestro-fav:hover { opacity: 1 !important; background: rgba(255,255,255,0.15); }
+.maestro-director .maestro-fav.faved { opacity: 1; color: #f4c44a; }
+
 /* Icon-grid layout — one continuous, uniform grid of tinted tiles */
 .maestro-director .maestro-scroll.layout-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
@@ -131,6 +149,7 @@
 }
 .maestro-director .layout-grid .maestro-item .sub { display: none; }
 .maestro-director .layout-grid .maestro-rename { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; }
+.maestro-director .layout-grid .maestro-fav { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; }
 
 /* Per-category color tint (grid only; the active highlight still wins) */
 .maestro-director .layout-grid .maestro-item[data-cat="combat"]     { background: #7a232333; border-color: #b9484866; color: #f3b1b1; }
@@ -145,19 +164,20 @@
 .maestro-director .layout-grid .maestro-item[data-cat="ambience"]   { background: #2a6a5a33; border-color: #45b99566; color: #a7efd6; }
 .maestro-director .layout-grid .maestro-item[data-cat="sfx"]        { background: #7a2a6a33; border-color: #b945a766; color: #efa7e0; }
 .maestro-director .layout-grid .maestro-item.active { background: var(--color-shadow-primary, #ff6400); border-color: #fff; color: #fff; }
-/* Soundboard sub-folder tiles read as navigable (dashed, folder accent) */
-.maestro-director .layout-grid .maestro-item.sb-folder { background: #3a3f4a66; border-style: dashed; border-color: #7a8194; color: #d4d9e6; }
-.maestro-director .layout-grid .maestro-item.sb-folder > i { color: #e8c879; }
+/* Soundboard sub-folder tiles: neutral, no colour tint; plain gray folder icon */
+.maestro-director .layout-grid .maestro-item.sb-folder { background: transparent; border-color: var(--color-border-light-tertiary, #4b4a44); color: inherit; }
+.maestro-director .layout-grid .maestro-item.sb-folder > i { color: #9aa0ad; }
 
 .maestro-director .hidden { display: none !important; }
 
 /* Soundboard status lines */
 .maestro-director .sb-status { font-size: 11px; opacity: .65; padding: 4px 6px; display: flex; align-items: center; gap: 6px; }
 
-/* Footer: stop-all + levels hint (per-channel volume lives on the playlist) */
-.maestro-director .maestro-foot { display: flex; align-items: center; gap: 8px; }
-.maestro-director .maestro-foot .foot-hint { flex: 1; min-width: 0; font-size: 10px; opacity: .5; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.maestro-director .maestro-foot button { flex: 0 0 auto; height: 28px; padding: 0 10px; display: flex; align-items: center; gap: 5px; }
+/* Footer: per-type icon volume sliders + Stop-all */
+.maestro-director .maestro-foot { display: flex; align-items: center; gap: 5px; }
+.maestro-director .maestro-foot > i { flex: 0 0 auto; width: 14px; text-align: center; font-size: 12px; opacity: .6; }
+.maestro-director .maestro-foot input[type="range"] { flex: 1 1 40px; min-width: 32px; }
+.maestro-director .maestro-foot button { flex: 0 0 auto; width: 30px; height: 28px; }
 
 .maestro-director .maestro-warn {
   background: #5a1d1d; color: #ffe9e9; padding: 6px 8px; border-radius: 4px;

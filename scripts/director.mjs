@@ -21,7 +21,10 @@ function orderedGroups(byCat) {
     .filter(k => byCat[k]?.length)
     .map(k => ({
       key: k, label: CATEGORIES[k].label, icon: CATEGORIES[k].icon,
-      items: byCat[k].sort((a, b) => a.name.localeCompare(b.name))
+      // Group sub-types together by icon (e.g. all cities, all docks, all farms),
+      // then alphabetical within each sub-type.
+      items: byCat[k].sort((a, b) =>
+        String(a.icon).localeCompare(String(b.icon)) || a.name.localeCompare(b.name))
     }));
 }
 
@@ -64,6 +67,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Custom GM label for a cue, or "" if none. */
   #cn(kind, id) { return (id && Maestro.customName?.(kind, id)) || ""; }
 
+  /** Whether a cue is favorited. */
+  #fav(kind, id) { return !!Maestro.isFavorite?.(kind, id); }
+
   /** The currently-active tab, falling back to Music if its zone is disabled. */
   #activeTab(weatherEnabled, sbEnabled) {
     if (this.#tab === "weather" && !weatherEnabled) return "music";
@@ -86,13 +92,14 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const m = musicMeta(s.id);
       const custom = this.#cn("music", s.id);
       (musicByCat[m.cat] ??= []).push({
-        id: s.id, base: m.name, name: custom || m.name, cat: m.cat,
+        id: s.id, favId: s.id, fav: this.#fav("music", s.id), base: m.name, name: custom || m.name, cat: m.cat,
         sub: custom ? m.name : s.id, icon: m.icon, active: s.id === music.soundscapeId
       });
     }
 
     // Ambience: collapse day/night into one generic-named THEME entry.
     const ambByCat = {};
+    const baseToCanonical = {};          // theme base → playable arrangement id (for favorites)
     const envArrs = soundscapes.emberEnvironment?.arrangements ?? {};
     const curBase = ambienceBase(env.arrangementId || "");
     const seen = new Set();
@@ -103,10 +110,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       // Canonical playable id: prefer the day variant; auto day/night swaps it.
       const dayId = `${base}Day`, nightId = `${base}Night`;
       const canonical = envArrs[dayId] ? dayId : (envArrs[nightId] ? nightId : (envArrs[base] ? base : arrId));
+      baseToCanonical[base] = canonical;
       const m = ambienceMeta(canonical);
       const custom = this.#cn("amb", base);
       (ambByCat[m.cat] ??= []).push({
-        id: canonical, renameId: base, base, cat: m.cat,
+        id: canonical, renameId: base, base, favId: base, fav: this.#fav("amb", base), cat: m.cat,
         name: custom || m.name, sub: custom ? m.name : (envArrs[canonical]?.label ?? ""),
         icon: m.icon, active: !!env.arrangementId && base === curBase
       });
@@ -117,7 +125,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       ? Object.keys(soundscapes.weather?.arrangements ?? {}).map(id => {
           const base = WEATHER[id] ?? prettify(id);
           const custom = this.#cn("weather", id);
-          return { id, base, name: custom || base, cat: "weather", active: id === weather.arrangementId };
+          return { id, favId: id, fav: this.#fav("weather", id), base, name: custom || base, cat: "weather", active: id === weather.arrangementId };
         })
       : [];
 
@@ -126,7 +134,32 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const sbCur = this.#sbPath || sbRoot;
     const sbEntry = sbEnabled ? this.#sbCache.get(sbCur) : null;
     const sbDirs = (sbEntry?.dirs ?? []).map(d => ({ path: d.path, name: d.name }));
-    const soundboard = (sbEntry?.files ?? []).map(f => ({ src: f.src, name: f.name, cat: "sfx" }));
+    const soundboard = (sbEntry?.files ?? []).map(f => ({ src: f.src, favId: f.src, fav: this.#fav("sfx", f.src), name: f.name, cat: "sfx" }));
+
+    // Favorites — any starred cue, grouped by type, sorted by sub-type then name.
+    const favByCat = {};
+    const favs = Maestro.favorites?.() ?? {};
+    for (const key of Object.keys(favs)) {
+      if (!favs[key]) continue;
+      const ci = key.indexOf(":");
+      const kind = key.slice(0, ci), fid = key.slice(ci + 1);
+      let it = null;
+      if (kind === "music" && soundscapes[fid]) {
+        const m = musicMeta(fid);
+        it = { kind, favId: fid, fav: true, id: fid, name: this.#cn("music", fid) || m.name, sub: m.name, icon: m.icon, cat: m.cat };
+      } else if (kind === "amb" && baseToCanonical[fid]) {
+        const canonical = baseToCanonical[fid];
+        const m = ambienceMeta(canonical);
+        it = { kind, favId: fid, fav: true, id: canonical, name: this.#cn("amb", fid) || m.name, sub: "", icon: m.icon, cat: m.cat };
+      } else if (kind === "weather") {
+        it = { kind, favId: fid, fav: true, id: fid, name: this.#cn("weather", fid) || WEATHER[fid] || prettify(fid), sub: "", icon: "fa-solid fa-cloud", cat: "weather" };
+      } else if (kind === "sfx") {
+        const nm = prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, ""));
+        it = { kind, favId: fid, fav: true, src: fid, name: nm, sub: "", icon: "fa-solid fa-volume-high", cat: "sfx" };
+      }
+      if (it) (favByCat[it.cat] ??= []).push(it);
+    }
+    const favoriteGroups = orderedGroups(favByCat);
     const sbAtRoot = !sbEnabled || sbCur === sbRoot;
     const sbFolderName = sbAtRoot ? "" : prettify(decodeURIComponent(sbCur.replace(/\/+$/, "").split("/").pop() || ""));
 
@@ -136,7 +169,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       music: musicGroups.reduce((n, g) => n + g.items.length, 0),
       amb: ambienceGroups.reduce((n, g) => n + g.items.length, 0),
       weather: weatherItems.length,
-      sfx: soundboard.length
+      sfx: soundboard.length,
+      fav: favoriteGroups.reduce((n, g) => n + g.items.length, 0)
     };
 
     // Active music soundscape — arrangement select + mood.
@@ -158,9 +192,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       layout, layoutList: layout === "list", layoutGrid: layout === "grid",
       weatherEnabled, sbEnabled,
       autoWeather: !!game.settings.get(MODULE_ID, "autoWeather"),
-      tabMusic: tab === "music", tabAmb: tab === "amb", tabWeather: tab === "weather", tabSfx: tab === "sfx",
+      tabMusic: tab === "music", tabAmb: tab === "amb", tabWeather: tab === "weather", tabSfx: tab === "sfx", tabFav: tab === "fav",
       counts,
-      musicGroups, ambienceGroups, weatherItems, soundboard, sbDirs,
+      musicGroups, ambienceGroups, weatherItems, soundboard, sbDirs, favoriteGroups,
       // Music transport
       hasMusic: !!music.soundscapeId,
       nowMusic: music.soundscapeId ? (this.#cn("music", music.soundscapeId) || musicMeta(music.soundscapeId).name) : "—",
@@ -174,6 +208,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       // Weather transport
       hasWeather: !!weather.arrangementId,
       nowWeather: weather.arrangementId ? (this.#cn("weather", weather.arrangementId) || WEATHER[weather.arrangementId] || prettify(weather.arrangementId)) : "—",
+      // Footer volumes (icon-only sliders)
+      musicVolume: this.#channelVolume("music"),
+      envVolume: this.#channelVolume("environment"),
+      weatherVolume: this.#channelVolume("weather"),
+      sfxVolume: (() => { const v = Number(game.settings.get(MODULE_ID, "sfxVolume")); return Number.isFinite(v) ? v : 0.8; })(),
       // Soundboard meta
       sbPath: sbCur,
       sbAtRoot, sbFolderName,
@@ -246,6 +285,13 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       await this.#promptRename(kind, renameId || id, name, base);
     });
 
+    // Favorite star — toggle (per-user; onChange re-renders).
+    onAll('[data-fav]', "click", e => {
+      e.stopPropagation();
+      const item = e.currentTarget.closest(".maestro-item");
+      if (item) Maestro.toggleFavorite(item.dataset.kind, item.dataset.favId);
+    });
+
     // Item clicks (the row is the button; the pencil stops propagation).
     onAll(".maestro-item", "click", e => {
       const { kind, id, src, path } = e.currentTarget.dataset;
@@ -279,7 +325,18 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     onAll('[data-stop]', "click", e => { Maestro.fadeOutChannel(e.currentTarget.dataset.stop); });
     on('[data-stopall]', "click", () => { Maestro.stopAll(); });
 
+    // Footer per-type volumes (icon-only sliders).
+    on('[name="music-volume"]', "change", e => this.#setVolume("music", e.target.value));
+    on('[name="environment-volume"]', "change", e => this.#setVolume("environment", e.target.value));
+    on('[name="weather-volume"]', "change", e => this.#setVolume("weather", e.target.value));
+    on('[name="sfx-volume"]', "change", e => game.settings.set(MODULE_ID, "sfxVolume", Number(e.target.value)));
+
     applyFilter(); // re-apply preserved search after a re-render
+  }
+
+  async #setVolume(channel, value) {
+    const sound = Maestro.sound?.channels?.[channel];
+    if (sound) await sound.update({ volume: Number(value) });
   }
 
   /** Prompt for a new label for a cue and persist it (blank reverts to default). */

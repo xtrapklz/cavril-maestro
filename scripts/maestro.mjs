@@ -257,7 +257,8 @@ globalThis.Maestro = {
   /** Play a one-shot effect for everyone (GM-triggered, broadcast to all). */
   async playOneShot(src, { volume } = {}) {
     if (!src) return;
-    const v = Number.isFinite(volume) ? volume : 0.8;
+    let v = Number.isFinite(volume) ? volume : Number(game.settings.get(MODULE_ID, "sfxVolume"));
+    if (!Number.isFinite(v)) v = 0.8;
     try {
       const snd = await foundry.audio.AudioHelper.play({ src, volume: v, autoplay: true, loop: false }, true);
       if (snd) {
@@ -341,6 +342,22 @@ globalThis.Maestro = {
     const v = String(name ?? "").trim();
     if (v) map[key] = v; else delete map[key];
     return game.settings.set(MODULE_ID, "customNames", map);
+  },
+
+  /* ----- Favorites (per-user; any cue can be starred) ----- */
+
+  /** The favorites map: { "kind:id": true }. */
+  favorites() { return game.settings.get(MODULE_ID, "favorites") || {}; },
+
+  /** Whether a cue is favorited. */
+  isFavorite(kind, id) { return !!this.favorites()[`${kind}:${id}`]; },
+
+  /** Toggle a cue's favorite state (per-user client setting). */
+  async toggleFavorite(kind, id) {
+    const map = foundry.utils.deepClone(this.favorites());
+    const key = `${kind}:${id}`;
+    if (map[key]) delete map[key]; else map[key] = true;
+    return game.settings.set(MODULE_ID, "favorites", map);
   }
 };
 
@@ -387,6 +404,23 @@ Hooks.once("init", () => {
     config: false,
     type: Boolean,
     default: false
+  });
+
+  // Per-user favorited cues: { "kind:id": true }.
+  game.settings.register(MODULE_ID, "favorites", {
+    scope: "client",
+    config: false,
+    type: Object,
+    default: {},
+    onChange: () => MaestroDirector.refresh()
+  });
+
+  // Soundboard one-shot volume (used by playOneShot).
+  game.settings.register(MODULE_ID, "sfxVolume", {
+    scope: "world",
+    config: false,
+    type: Number,
+    default: 0.8
   });
 
   // Auto-pick (and switch) day/night arrangement variants from the calendar.

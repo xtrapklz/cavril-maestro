@@ -24,16 +24,17 @@
     {{#if sbEnabled}}
     <button type="button" data-tab="sfx" class="{{#if tabSfx}}active{{/if}}"><i class="fa-solid fa-bullhorn"></i> Soundboard <span class="cnt">{{counts.sfx}}</span></button>
     {{/if}}
+    <button type="button" data-tab="fav" class="{{#if tabFav}}active{{/if}}" data-tooltip="Favorites"><i class="fa-solid fa-star"></i> <span class="cnt">{{counts.fav}}</span></button>
   </div>
 
   {{!-- MUSIC ZONE --}}
   <div class="maestro-zone {{#if tabMusic}}active{{/if}}" data-zone="music">
     <div class="maestro-now">
       <span class="np" data-tooltip="Now playing (music)"><i class="fa-solid fa-music"></i> {{nowMusic}}</span>
-      <div class="mood-toggle" data-tooltip="Mood">
-        <button type="button" data-mood="calm" class="{{#if calmActive}}active{{/if}}" {{#unless hasMusic}}disabled{{/unless}} data-tooltip="Calm version"><i class="fa-solid fa-feather"></i> Calm</button>
-        <button type="button" data-mood="tension" class="{{#if tensionActive}}active{{/if}}" {{#unless canTension}}disabled{{/unless}} data-tooltip="Tense version"><i class="fa-solid fa-bolt"></i> Tension</button>
-      </div>
+    </div>
+    <div class="mood-toggle">
+      <button type="button" data-mood="calm" class="mood-btn calm {{#if calmActive}}active{{/if}}" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-feather"></i> Calm</button>
+      <button type="button" data-mood="tension" class="mood-btn tension {{#if tensionActive}}active{{/if}}" {{#unless canTension}}disabled{{/unless}}><i class="fa-solid fa-bolt"></i> Tension</button>
     </div>
     <div class="maestro-controls">
       <select name="music-arrangement" data-tooltip="Scene / variant" {{#unless hasMusic}}disabled{{/unless}}>
@@ -46,8 +47,9 @@
       {{#each musicGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="music" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="music" data-id="{{id}}" data-fav-id="{{favId}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
+          <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
           <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
         </div>
         {{/each}}
@@ -65,8 +67,9 @@
       {{#each ambienceGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="amb" data-id="{{id}}" data-rename-id="{{renameId}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="amb" data-id="{{id}}" data-rename-id="{{renameId}}" data-fav-id="{{favId}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
+          <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
           <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
         </div>
         {{/each}}
@@ -84,8 +87,9 @@
     </div>
     <div class="maestro-scroll layout-{{layout}}">
       {{#each weatherItems}}
-      <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="weather" data-id="{{id}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+      <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="weather" data-id="{{id}}" data-fav-id="{{favId}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
         <i class="fa-solid fa-cloud"></i><span class="nm">{{name}}</span>
+        <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
         <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
       </div>
       {{/each}}
@@ -111,17 +115,41 @@
       </div>
       {{/each}}
       {{#each soundboard}}
-      <div class="maestro-item" role="button" tabindex="0" data-kind="sfx" data-src="{{src}}" data-name="{{name}}" data-cat="{{cat}}">
+      <div class="maestro-item" role="button" tabindex="0" data-kind="sfx" data-src="{{src}}" data-fav-id="{{favId}}" data-name="{{name}}" data-cat="{{cat}}">
         <i class="fa-solid fa-volume-high"></i><span class="nm">{{name}}</span>
+        <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
       </div>
       {{/each}}
     </div>
   </div>
   {{/if}}
 
+  {{!-- FAVORITES ZONE --}}
+  <div class="maestro-zone {{#if tabFav}}active{{/if}}" data-zone="fav">
+    {{#unless favoriteGroups.length}}<div class="sb-status"><i class="fa-solid fa-star"></i> No favorites yet — tap the star on any sound to add it here.</div>{{/unless}}
+    <div class="maestro-scroll layout-{{layout}}">
+      {{#each favoriteGroups}}
+        <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
+        {{#each items}}
+        <div class="maestro-item" role="button" tabindex="0" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-fav-id="{{favId}}" data-name="{{name}}" data-cat="{{cat}}">
+          <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
+          <button type="button" class="maestro-fav faved" data-fav data-tooltip="Remove from favorites"><i class="fa-solid fa-star"></i></button>
+        </div>
+        {{/each}}
+      {{/each}}
+    </div>
+  </div>
+
   <div class="maestro-foot">
-    <span class="foot-hint" data-tooltip="Per-channel levels live on the Maestro Channels playlist"><i class="fa-solid fa-sliders"></i> Levels: Maestro Channels</span>
-    <button type="button" data-stopall data-tooltip="Stop everything"><i class="fa-solid fa-circle-stop"></i> Stop all</button>
+    <i class="fa-solid fa-music" data-tooltip="Music volume"></i>
+    <input type="range" name="music-volume" min="0" max="1" step="0.05" value="{{musicVolume}}">
+    <i class="fa-solid fa-wind" data-tooltip="Ambience volume"></i>
+    <input type="range" name="environment-volume" min="0" max="1" step="0.05" value="{{envVolume}}">
+    <i class="fa-solid fa-cloud-bolt" data-tooltip="Weather volume"></i>
+    <input type="range" name="weather-volume" min="0" max="1" step="0.05" value="{{weatherVolume}}">
+    <i class="fa-solid fa-volume-high" data-tooltip="Soundboard volume"></i>
+    <input type="range" name="sfx-volume" min="0" max="1" step="0.05" value="{{sfxVolume}}">
+    <button type="button" data-stopall data-tooltip="Stop everything (fades out)"><i class="fa-solid fa-circle-stop"></i></button>
   </div>
 {{/unless}}
 </div>
