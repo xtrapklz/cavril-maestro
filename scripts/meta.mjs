@@ -123,6 +123,32 @@ export function hasTension(ss) {
   return Object.keys(ss?.arrangements ?? {}).some(id => /tension/i.test(id));
 }
 
+/** Which time-of-day phase an arrangement id is flavoured for, or null if neutral. */
+export function phaseOf(id = "") {
+  if (/night/i.test(id)) return "night";
+  if (/(day|dawn|dusk)/i.test(id)) return "day";
+  return null;
+}
+
+/**
+ * Find the day/night counterpart of the current arrangement for a target phase,
+ * matching its "base" so Docks-Day → Docks-Night (not some other area). Returns
+ * null when the current arrangement isn't phase-specific or already matches.
+ * @param {object} ss          soundscape (its .arrangements are searched)
+ * @param {string} curArrId    the currently-playing arrangement id
+ * @param {"day"|"night"} phase target phase
+ * @returns {string|null}
+ */
+export function dayNightVariant(ss, curArrId, phase) {
+  const ids = Object.keys(ss?.arrangements ?? {});
+  if (!curArrId || !ids.length) return null;
+  const cur = phaseOf(curArrId);
+  if (!cur || cur === phase) return null;                 // neutral, or already correct
+  const strip = id => id.replace(/(day|night|dawn|dusk)/ig, "").toLowerCase();
+  const b = strip(curArrId);
+  return ids.find(id => phaseOf(id) === phase && strip(id) === b) || null;
+}
+
 /**
  * Find the calm/tension counterpart arrangement for the current one, matching
  * the current arrangement's "base" (so Docks-Day ↔ Docks-Tension, not some other area).

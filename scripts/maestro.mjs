@@ -20,6 +20,7 @@ import { EmberSoundscape, EmberAudioArrangement } from "./engine.mjs";
 import { soundscapes } from "./soundscapes.mjs";
 import { MaestroDirector } from "./director.mjs";
 import { MaestroMorphPad } from "./morphpad.mjs";
+import { dayNightVariant } from "./meta.mjs";
 
 const MODULE_ID = "cavril-maestro";
 const CHANNELS = ["music", "environment", "weather", "effects"];
@@ -53,17 +54,58 @@ globalThis.Maestro = {
   },
 
   /**
-   * Time-of-day phase used to pick day/night environment arrangements.
-   * Standalone-safe default ("day"); honors Simple Calendar if present.
-   * @returns {string}
+   * Current in-world hour (0-23), read in a calendar-module-agnostic way:
+   *   1. Foundry's native calendar (V13+: game.time.components.hour) — this is
+   *      what Mini-Calendar and any other UI drive, so it Just Works.
+   *   2. Simple Calendar's API, if installed.
+   *   3. Derived from worldTime assuming a 24h/86400s day.
+   * @returns {number|null}
    */
-  dayPhase() {
+  worldHour() {
+    try {
+      const h = game.time?.components?.hour;
+      if (Number.isFinite(h)) return h;
+    } catch (_e) { /* ignore */ }
     try {
       const sc = game.modules.get("foundryvtt-simple-calendar")?.api;
-      const hour = sc?.timestampToDate?.(game.time.worldTime)?.hour;
-      if (Number.isFinite(hour)) return (hour < 6 || hour >= 20) ? "night" : "day";
+      const h = sc?.timestampToDate?.(game.time.worldTime)?.hour;
+      if (Number.isFinite(h)) return h;
     } catch (_e) { /* ignore */ }
-    return "day";
+    const wt = Number(game.time?.worldTime);
+    if (Number.isFinite(wt)) return Math.floor((((wt % 86400) + 86400) % 86400) / 3600);
+    return null;
+  },
+
+  /**
+   * Time-of-day phase used to auto-pick day/night arrangements. Night is
+   * 20:00–05:59. Standalone-safe default ("day") when no time source exists.
+   * @returns {"day"|"night"}
+   */
+  dayPhase() {
+    const h = this.worldHour();
+    if (!Number.isFinite(h)) return "day";
+    return (h < 6 || h >= 20) ? "night" : "day";
+  },
+
+  /**
+   * Re-evaluate the active music & ambience channels against the current
+   * time-of-day phase and switch any cue that has a matching day/night variant.
+   * Called on calendar time changes, on ready, and when the setting toggles on.
+   * GM only (the state broadcast carries the switch to players).
+   */
+  applyDayNight() {
+    if (!game.user?.isGM) return;
+    if (!game.settings.get(MODULE_ID, "autoDayNight")) return;
+    const cfg = this.sound?.getActiveConfiguration?.();
+    if (!cfg) return;
+    const phase = this.dayPhase();
+    for (const ch of ["music", "environment"]) {
+      const c = cfg[ch];
+      if (!c?.soundscapeId || !c?.arrangementId) continue;
+      const ss = soundscapes[c.soundscapeId];
+      const v = ss ? dayNightVariant(ss, c.arrangementId, phase) : null;
+      if (v && v !== c.arrangementId) this.play(c.soundscapeId, { channel: ch, arrangementId: v });
+    }
   },
 
   /**
@@ -112,6 +154,11 @@ globalThis.Maestro = {
     const ss = soundscapes[soundscapeId];
     if (!ss) return ui.notifications?.warn(`Maestro: unknown soundscape "${soundscapeId}".`);
     arrangementId ??= Object.keys(ss.arrangements ?? {})[0];
+    // Auto day/night: prefer the variant matching the in-world time of day.
+    if ((channel === "music" || channel === "environment") && game.settings.get(MODULE_ID, "autoDayNight")) {
+      const v = dayNightVariant(ss, arrangementId, this.dayPhase());
+      if (v) arrangementId = v;
+    }
     const sentinel = this.sound?.channels?.[channel];
     if (sentinel && !sentinel.playing) await sentinel.update({ playing: true });
     const change = { [channel]: { soundscapeId, arrangementId } };
@@ -218,6 +265,19 @@ Hooks.once("init", () => {
     default: false
   });
 
+  // Auto-pick (and switch) day/night arrangement variants from the calendar.
+  game.settings.register(MODULE_ID, "autoDayNight", {
+    name: "Auto Day/Night Variants",
+    hint: "When a cue has day/night variants, automatically choose the one matching the in-world time of day, " +
+          "and switch music & ambience when day turns to night. Reads your calendar (works with Mini Calendar, " +
+          "Simple Calendar, or Foundry's built-in time).",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+    onChange: () => Maestro.applyDayNight?.()
+  });
+
   game.settings.register(MODULE_ID, "crossfadeSeconds", {
     name: "Crossfade Length (seconds)",
     hint: "Minimum fade applied to every clip so transitions and loops are seamless. 0 = hard cuts. Reload after changing.",
@@ -306,6 +366,9 @@ Hooks.once("ready", async () => {
     Maestro.sound.initialize();
     await Maestro.sound.activate();
 
+    // Snap the restored state to the current time of day (if it has variants).
+    try { Maestro.applyDayNight(); } catch (e) { console.warn(`${MODULE_ID} | initial day/night sync skipped:`, e); }
+
     // Stage-1 control surface: reuse the lifted Playlists-sidebar selector
     // (soundscape + mood + environment pickers). Replaced by a dedicated
     // Director panel in Stage 2.
@@ -324,6 +387,19 @@ Hooks.once("ready", async () => {
 /* ------------------------------------------------------------------ */
 /*  Scene-controls button (best-effort; the macro/console always work) */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/*  Auto day/night — react to calendar time changes (debounced)        */
+/* ------------------------------------------------------------------ */
+
+let _dnTimer = null;
+Hooks.on("updateWorldTime", () => {
+  clearTimeout(_dnTimer);
+  _dnTimer = setTimeout(() => {
+    try { Maestro.applyDayNight(); }
+    catch (e) { console.warn(`${MODULE_ID} | day/night switch skipped:`, e); }
+  }, 400);
+});
 
 Hooks.on("getSceneControlButtons", controls => {
   if (!game.user?.isGM) return;

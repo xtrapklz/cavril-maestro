@@ -8,6 +8,7 @@
 
   <div class="maestro-toolbar">
     <input type="search" name="search" placeholder="Search this zone…" value="{{search}}" autocomplete="off">
+    <span class="phase-chip {{phase}} {{#unless autoDayNight}}off{{/unless}}" data-tooltip="In-world: {{phase}} — auto day/night is {{#if autoDayNight}}on{{else}}off (set it in module settings){{/if}}"><i class="fa-solid {{phaseIcon}}"></i></span>
     <div class="seg layout-toggle" data-tooltip="Layout">
       <button type="button" data-layout="list" class="{{#if layoutList}}active{{/if}}" data-tooltip="List"><i class="fa-solid fa-list"></i></button>
       <button type="button" data-layout="grid" class="{{#if layoutGrid}}active{{/if}}" data-tooltip="Icon grid"><i class="fa-solid fa-table-cells-large"></i></button>

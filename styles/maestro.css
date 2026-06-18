@@ -33,6 +33,15 @@
 .maestro-director .mood-toggle button[data-mood="calm"].active { background: #2f5d8a; color: #fff; }
 .maestro-director .mood-toggle button[data-mood="tension"].active { background: #9b3030; color: #fff; }
 
+/* Day/night phase indicator */
+.maestro-director .phase-chip {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--color-border-dark, #1e1e1e);
+}
+.maestro-director .phase-chip.day { background: #b9851f33; color: #f4c45a; }
+.maestro-director .phase-chip.night { background: #2b395f33; color: #9fb6f0; }
+.maestro-director .phase-chip.off { opacity: .4; }
+
 /* Zone tabs */
 .maestro-director .maestro-tabs { display: flex; gap: 4px; }
 .maestro-director .maestro-tabs button {

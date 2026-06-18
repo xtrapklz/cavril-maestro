@@ -108,11 +108,14 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
           .map(([id, v]) => ({ id, label: v?.label ?? prettify(id), selected: id === music.arrangementId }))
       : [];
     const onTension = !!music.arrangementId && /tension/i.test(music.arrangementId);
+    const phase = Maestro.dayPhase?.() ?? "day";
 
     return {
       ready: !!Maestro.sound,
       assetWarning: !game.settings.get(MODULE_ID, "assetBasePath"),
       search: this.#search,
+      phase, phaseIcon: phase === "night" ? "fa-moon" : "fa-sun",
+      autoDayNight: !!game.settings.get(MODULE_ID, "autoDayNight"),
       layout, layoutList: layout === "list", layoutGrid: layout === "grid",
       tabMusic: this.#tab === "music", tabAmb: this.#tab === "amb", tabWeather: this.#tab === "weather",
       counts,
