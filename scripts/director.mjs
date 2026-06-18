@@ -61,6 +61,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
         }))
       : [];
 
+    const curEnv = soundscapes[env.soundscapeId];
+    const envArrangements = curEnv
+      ? Object.entries(curEnv.arrangements ?? {}).map(([id, v]) => ({ id, label: v?.label ?? id, selected: id === env.arrangementId }))
+      : [];
+
     const mood = Maestro.sound?.mood ?? "calm";
     return {
       ready: !!Maestro.sound,
@@ -72,6 +77,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       tensionActive: mood === "tension",
       musicVolume: this.#channelVolume("music"),
       envList: byType("environment").map(s => ({ id: s.id, label: s.label, selected: s.id === env.soundscapeId })),
+      hasEnv: !!env.soundscapeId,
+      envArrangements,
       envVolume: this.#channelVolume("environment")
     };
   }
@@ -100,6 +107,10 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const id = e.target.value;
       if (id) Maestro.play(id, { channel: "environment" }); else Maestro.stop("environment");
       this.render();
+    });
+    on('[name="environment-arrangement"]', "change", e => {
+      const id = Maestro.sound?.getActiveConfiguration?.().environment?.soundscapeId;
+      if (id) Maestro.play(id, { channel: "environment", arrangementId: e.target.value });
     });
     on('[name="environment-volume"]', "change", e => this.#setVolume("environment", e.target.value));
 

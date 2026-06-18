@@ -327,7 +327,7 @@ class EmberSoundOrchestration extends foundry.audio.Sound {
     }
     const timeout = new Promise(resolve => window.setTimeout(() => {
       if ( !settled ) {
-        console.warn(`Ember | ${this.channel} channel failed to update before ${timeoutMS} millisecond timeout`);
+        this.#debug(`${this.channel} channel update did not fully settle within ${timeoutMS}ms (normal for delayed ambience layers)`);
       }
       resolve();
     }, timeoutMS));
@@ -712,6 +712,9 @@ class EmberSoundOrchestration extends foundry.audio.Sound {
  * @property {number} maxLayers                     The maximum number of layers included when randomizing
  */
 class EmberAudioArrangement extends foundry.abstract.DataModel {
+  /** Minimum fade (seconds) applied to any layer that defines none, so clips never hard-cut. */
+  static FADE_FLOOR = 0.8;
+
   static defineSchema() {
     const fields = foundry.data.fields;
     return {
@@ -806,6 +809,14 @@ class EmberAudioArrangement extends foundry.abstract.DataModel {
 
       // Layer timing
       t.loop ??= canLoop;
+
+      // Fade floor: give every layer a minimum fade so individual clips never hard-cut
+      // in/out (especially non-sync ambience). Preserves explicit values, including 0.
+      const floor = EmberAudioArrangement.FADE_FLOOR;
+      if ( floor > 0 ) {
+        if ( t.fadeIn === undefined ) t.fadeIn = floor;
+        if ( t.fadeOut === undefined ) t.fadeOut = floor;
+      }
       return [layer.id, layer];
     }));
   }

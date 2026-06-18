@@ -44,6 +44,11 @@
       </select>
       <button type="button" data-stop="environment" data-tooltip="Stop ambience"><i class="fa-solid fa-stop"></i></button>
     </div>
+    <div class="row">
+      <select name="environment-arrangement" data-tooltip="Ambience scene" {{#unless hasEnv}}disabled{{/unless}}>
+        {{#each envArrangements}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+    </div>
     <div class="row volume">
       <i class="fa-solid fa-volume-low"></i>
       <input type="range" name="environment-volume" min="0" max="1" step="0.05" value="{{envVolume}}" data-tooltip="Ambience volume">
