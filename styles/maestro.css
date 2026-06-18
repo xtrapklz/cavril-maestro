@@ -2,6 +2,9 @@
 
 .maestro-director .window-content {
   padding: 8px;
+}
+
+.maestro-director-body {
   display: flex;
   flex-direction: column;
   gap: 8px;

@@ -273,7 +273,6 @@ Hooks.on("getSceneControlButtons", controls => {
       title: "Maestro — Music Director",
       icon: "fa-solid fa-compact-disc",
       button: true,
-      onClick: () => Maestro.openDirector(),
       onChange: () => Maestro.openDirector()
     };
   } catch (e) {

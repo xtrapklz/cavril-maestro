@@ -1,55 +1,57 @@
+<div class="maestro-director-body">
 {{#unless ready}}
-<div class="maestro-warn"><i class="fa-solid fa-circle-exclamation"></i> Maestro isn't initialized — check the console and that the audio path is set, then reload.</div>
+  <div class="maestro-warn"><i class="fa-solid fa-circle-exclamation"></i> Maestro isn't initialized — check the console and that the audio path is set, then reload.</div>
 {{else}}
-{{#if assetWarning}}
-<div class="maestro-warn"><i class="fa-solid fa-triangle-exclamation"></i> Audio Asset Base Path isn't set — music will 404. Set it in module settings and reload.</div>
-{{/if}}
+  {{#if assetWarning}}
+  <div class="maestro-warn"><i class="fa-solid fa-triangle-exclamation"></i> Audio Asset Base Path isn't set — music will 404. Set it in module settings and reload.</div>
+  {{/if}}
 
-<section class="channel music">
-  <header><i class="fa-solid fa-music"></i> Music</header>
+  <section class="channel music">
+    <header><i class="fa-solid fa-music"></i> Music</header>
 
-  <div class="row">
-    <select name="music-soundscape" data-tooltip="Soundscape">
-      <option value="">— none —</option>
-      {{#each musicList}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-    </select>
-  </div>
+    <div class="row">
+      <select name="music-soundscape" data-tooltip="Soundscape">
+        <option value="">— none —</option>
+        {{#each musicList}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+    </div>
 
-  <div class="row">
-    <select name="music-arrangement" data-tooltip="Arrangement" {{#unless hasMusic}}disabled{{/unless}}>
-      {{#each arrangements}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-    </select>
-    <button type="button" data-reroll data-tooltip="Re-roll the layer mix now" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
-  </div>
+    <div class="row">
+      <select name="music-arrangement" data-tooltip="Arrangement" {{#unless hasMusic}}disabled{{/unless}}>
+        {{#each arrangements}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+      <button type="button" data-reroll data-tooltip="Re-roll the layer mix now" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
+    </div>
 
-  <div class="mood-toggle" data-tooltip="Mood">
-    <button type="button" data-mood="calm" class="{{#if calmActive}}active{{/if}}"><i class="fa-solid fa-feather"></i> Calm</button>
-    <button type="button" data-mood="tension" class="{{#if tensionActive}}active{{/if}}"><i class="fa-solid fa-bolt"></i> Tension</button>
-  </div>
+    <div class="mood-toggle" data-tooltip="Mood">
+      <button type="button" data-mood="calm" class="{{#if calmActive}}active{{/if}}"><i class="fa-solid fa-feather"></i> Calm</button>
+      <button type="button" data-mood="tension" class="{{#if tensionActive}}active{{/if}}"><i class="fa-solid fa-bolt"></i> Tension</button>
+    </div>
 
-  <div class="row volume">
-    <i class="fa-solid fa-volume-low"></i>
-    <input type="range" name="music-volume" min="0" max="1" step="0.05" value="{{musicVolume}}" data-tooltip="Music volume">
-    <button type="button" data-stop="music" data-tooltip="Stop music"><i class="fa-solid fa-stop"></i></button>
-  </div>
-</section>
+    <div class="row volume">
+      <i class="fa-solid fa-volume-low"></i>
+      <input type="range" name="music-volume" min="0" max="1" step="0.05" value="{{musicVolume}}" data-tooltip="Music volume">
+      <button type="button" data-stop="music" data-tooltip="Stop music"><i class="fa-solid fa-stop"></i></button>
+    </div>
+  </section>
 
-<section class="channel environment">
-  <header><i class="fa-solid fa-tree"></i> Ambience</header>
-  <div class="row">
-    <select name="environment-soundscape" data-tooltip="Environment soundscape">
-      <option value="">— none —</option>
-      {{#each envList}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-    </select>
-    <button type="button" data-stop="environment" data-tooltip="Stop ambience"><i class="fa-solid fa-stop"></i></button>
-  </div>
-  <div class="row volume">
-    <i class="fa-solid fa-volume-low"></i>
-    <input type="range" name="environment-volume" min="0" max="1" step="0.05" value="{{envVolume}}" data-tooltip="Ambience volume">
-  </div>
-</section>
+  <section class="channel environment">
+    <header><i class="fa-solid fa-tree"></i> Ambience</header>
+    <div class="row">
+      <select name="environment-soundscape" data-tooltip="Environment soundscape">
+        <option value="">— none —</option>
+        {{#each envList}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+      <button type="button" data-stop="environment" data-tooltip="Stop ambience"><i class="fa-solid fa-stop"></i></button>
+    </div>
+    <div class="row volume">
+      <i class="fa-solid fa-volume-low"></i>
+      <input type="range" name="environment-volume" min="0" max="1" step="0.05" value="{{envVolume}}" data-tooltip="Ambience volume">
+    </div>
+  </section>
 
-<footer>
-  <button type="button" data-stopall><i class="fa-solid fa-circle-stop"></i> Stop all</button>
-</footer>
+  <footer>
+    <button type="button" data-stopall><i class="fa-solid fa-circle-stop"></i> Stop all</button>
+  </footer>
 {{/unless}}
+</div>
