@@ -1,0 +1,20 @@
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Packaged builds
+*.zip
+
+# Node (if tooling is added later)
+node_modules/
+
+# Audio assets are hosted on Forge / supplied per-license — never commit them
+assets/
+audio/
+*.ogg
+*.mp3
+*.wav
+*.opus
+*.m4a
+*.flac
+*.webm

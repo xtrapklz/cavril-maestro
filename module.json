@@ -1,0 +1,31 @@
+{
+  "id": "cavril-maestro",
+  "title": "Cavril Maestro — Adaptive Music Director",
+  "description": "Standalone adaptive, generative, beat-synchronized soundscape engine with Calm/Tension moods and a GM Director panel. System-agnostic. Audio engine ported from Ember's soundscape system; bring your own audio assets via a configurable base path.",
+  "version": "0.1.2",
+  "authors": [
+    { "name": "Ricky Johnson", "email": "mail@rickyj.art", "discord": "" }
+  ],
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14"
+  },
+  "esmodules": [
+    "scripts/maestro.mjs"
+  ],
+  "styles": [
+    "styles/maestro.css"
+  ],
+  "socket": true,
+  "url": "https://github.com/xtrapklz/cavril-maestro",
+  "manifest": "https://github.com/xtrapklz/cavril-maestro/releases/latest/download/module.json",
+  "download": "https://github.com/xtrapklz/cavril-maestro/releases/latest/download/module.zip",
+  "readme": "https://github.com/xtrapklz/cavril-maestro/blob/main/README.md",
+  "bugs": "https://github.com/xtrapklz/cavril-maestro/issues",
+  "license": "https://github.com/xtrapklz/cavril-maestro/blob/main/NOTICE.md",
+  "flags": {
+    "cavril-maestro": {
+      "note": "Audio is NOT bundled. Set the 'Audio Asset Base Path' world setting to the folder holding your music/ environment/ weather/ effects subfolders (e.g. a Forge Assets Library URL)."
+    }
+  }
+}

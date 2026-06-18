@@ -1,0 +1,31 @@
+name: Release
+
+# Tag a commit (e.g. `git tag v0.1.0 && git push --tags`) to publish a release
+# with module.json + module.zip that Foundry can install by manifest URL.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "const fs=require('fs');const m=require('./module.json');m.version='${VERSION}';fs.writeFileSync('module.json',JSON.stringify(m,null,2)+'\n');"
+
+      - name: Package module.zip
+        run: zip -r module.zip module.json README.md NOTICE.md scripts styles -x '*/.DS_Store'
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" module.json module.zip --title "${GITHUB_REF_NAME}" --notes "Automated release of ${GITHUB_REF_NAME}."
