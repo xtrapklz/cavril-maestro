@@ -31,8 +31,8 @@
     <div class="maestro-now">
       <span class="np" data-tooltip="Now playing (music)"><i class="fa-solid fa-music"></i> {{nowMusic}}</span>
       <div class="mood-toggle" data-tooltip="Mood">
-        <button type="button" data-mood="calm" class="{{#if calmActive}}active{{/if}}" {{#unless hasMusic}}disabled{{/unless}} data-tooltip="Calm version"><i class="fa-solid fa-feather"></i></button>
-        <button type="button" data-mood="tension" class="{{#if tensionActive}}active{{/if}}" {{#unless canTension}}disabled{{/unless}} data-tooltip="Tense version"><i class="fa-solid fa-bolt"></i></button>
+        <button type="button" data-mood="calm" class="{{#if calmActive}}active{{/if}}" {{#unless hasMusic}}disabled{{/unless}} data-tooltip="Calm version"><i class="fa-solid fa-feather"></i> Calm</button>
+        <button type="button" data-mood="tension" class="{{#if tensionActive}}active{{/if}}" {{#unless canTension}}disabled{{/unless}} data-tooltip="Tense version"><i class="fa-solid fa-bolt"></i> Tension</button>
       </div>
     </div>
     <div class="maestro-controls">
@@ -97,13 +97,19 @@
   {{!-- SOUNDBOARD ZONE --}}
   <div class="maestro-zone {{#if tabSfx}}active{{/if}}" data-zone="sfx">
     <div class="maestro-now">
-      <span class="np" data-tooltip="{{sbPath}}"><i class="fa-solid fa-bullhorn"></i> Soundboard <span class="cnt">{{counts.sfx}}</span></span>
+      {{#unless sbAtRoot}}<button type="button" data-sb-home data-tooltip="Back to main soundboard"><i class="fa-solid fa-arrow-left"></i></button>{{/unless}}
+      <span class="np" data-tooltip="{{sbPath}}"><i class="fa-solid {{#if sbAtRoot}}fa-bullhorn{{else}}fa-folder-open{{/if}}"></i> {{#if sbAtRoot}}Soundboard{{else}}{{sbFolderName}}{{/if}} <span class="cnt">{{counts.sfx}}</span></span>
       <button type="button" data-sb-refresh data-tooltip="Rescan folder"><i class="fa-solid fa-rotate"></i></button>
     </div>
     {{#if sbWarning}}<div class="maestro-warn"><i class="fa-solid fa-triangle-exclamation"></i> Set the Soundboard Folder in module settings.</div>{{/if}}
     {{#if sbLoading}}<div class="sb-status"><i class="fa-solid fa-spinner fa-spin"></i> Scanning folder…</div>{{/if}}
-    {{#if sbEmpty}}<div class="sb-status"><i class="fa-solid fa-circle-info"></i> No audio files found in that folder (check the path / source).</div>{{/if}}
+    {{#if sbEmpty}}<div class="sb-status"><i class="fa-solid fa-circle-info"></i> Nothing here (check the path / source).</div>{{/if}}
     <div class="maestro-scroll layout-grid">
+      {{#each sbDirs}}
+      <div class="maestro-item sb-folder" role="button" tabindex="0" data-kind="sbdir" data-path="{{path}}" data-name="{{name}}" data-cat="sfx">
+        <i class="fa-solid fa-folder"></i><span class="nm">{{name}}</span>
+      </div>
+      {{/each}}
       {{#each soundboard}}
       <div class="maestro-item" role="button" tabindex="0" data-kind="sfx" data-src="{{src}}" data-name="{{name}}" data-cat="{{cat}}">
         <i class="fa-solid fa-volume-high"></i><span class="nm">{{name}}</span>

@@ -11,14 +11,13 @@
  *   theme, etc). The highest-scoring theme wins and plays.
  *
  *   The flat per-body `hordeWeight` is what lets a swarm of low-CR minions own
- *   the music while they're numerous: 20 goblins (CR 1/4) score 20·(0.25+1)=25,
- *   beating a lone CR 10 boss at 11 — until the goblins thin out, at which point
- *   the boss's score overtakes and the music shifts to its theme. A genuinely
- *   deadly boss (high CR) dominates from the start, as it should. The weight is
+ *   the music: 20 goblins (CR 1/4) score 20·(0.25+1)=25, beating a lone CR 10
+ *   boss at 11. A genuinely deadly boss (high CR) dominates. The weight is
  *   tunable via the "Combat Horde Weight" setting (0 = pure CR sum).
  *
- *   Recompute fires on every event that can change who's alive: combatant
- *   add/remove/defeat, turn/round changes, and HP edits to a combatant's actor.
+ *   The theme is chosen ONCE, when combat begins — no live re-picking as
+ *   monsters fall. When combat ends the music fades out gracefully and an
+ *   optional end sting (the "Combat End Sound" setting) plays.
  * ------------------------------------------------------------------
  */
 
@@ -47,7 +46,6 @@ const TYPE_MUSIC = {
 /* Internal state for the active auto-combat session. */
 let _active = false;          // are we currently driving the music?
 let _current = null;          // soundscape id we last set
-let _saved = null;            // {soundscapeId, arrangementId} to restore afterwards
 
 const enabled = () => {
   try { return !!game.settings.get(MODULE_ID, "autoCombatMusic"); }
@@ -110,63 +108,42 @@ export const MaestroCombat = {
   TYPE_MUSIC,
   get active() { return _active; },
 
-  /** Combat began — remember current music, then choose a theme. */
+  /** Combat began — choose a theme from the field, once. */
   onCombatStart(combat) {
     if (!game.user?.isGM || !enabled() || _active) return;
-    const cur = Maestro.sound?.getActiveConfiguration?.().music ?? {};
-    _saved = { soundscapeId: cur.soundscapeId ?? null, arrangementId: cur.arrangementId ?? null };
     _active = true;
     _current = null;
-    this.recompute(combat, true);
-  },
-
-  /** Re-evaluate the field and switch the combat theme if the leader changed. */
-  recompute(combat, force = false) {
-    if (!_active || !game.user?.isGM || !enabled()) return;
     const ss = chooseSoundscape(combat ?? game.combat);
-    if (!ss) return;                       // nothing recognisable → leave music as-is
-    if (ss === _current && !force) return;
+    if (!ss) return;                       // nothing recognisable → stay armed, leave music
     _current = ss;
     Maestro.play(ss, { channel: "music" });
   },
 
-  /** Combat ended — restore whatever was playing before (or stop). */
+  /** Combat ended — play the optional end sting, then fade our combat music out. */
   async onCombatEnd() {
     if (!_active) return;
+    const startedMusic = !!_current;       // did we actually take over the music?
     _active = false;
     _current = null;
     if (!game.user?.isGM) return;
-    const s = _saved; _saved = null;
-    if (s?.soundscapeId) Maestro.play(s.soundscapeId, { channel: "music", arrangementId: s.arrangementId });
-    else await Maestro.stop("music");
+    const sfx = String(game.settings.get(MODULE_ID, "combatEndSound") || "").trim();
+    if (sfx) { try { await Maestro.playOneShot(sfx); } catch (_e) { /* ignore */ } }
+    // Only fade the music if we were the ones driving it (don't touch the GM's
+    // own track when no combat theme was chosen).
+    if (startedMusic) { try { await Maestro.fadeOutChannel("music"); } catch (_e) { try { await Maestro.stop("music"); } catch (_e2) { /* ignore */ } } }
   },
 
   /**
    * Register the Foundry hooks that drive auto-combat-music. Called once on
-   * ready. All handlers are GM-gated and no-op unless the feature is enabled.
+   * ready. GM-gated; no-op unless the feature is enabled. The theme is picked
+   * only at combat start — no live re-picking.
    */
   installHooks() {
-    let timer = null;
-    const recompute = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        try { this.recompute(game.combat); }
-        catch (e) { console.warn(`${MODULE_ID} | combat recompute skipped:`, e); }
-      }, 250);
-    };
-
     Hooks.on("combatStart", combat => { try { this.onCombatStart(combat); } catch (e) { console.warn(`${MODULE_ID} | combatStart skipped:`, e); } });
     // Fallback: some flows set started without firing combatStart.
     Hooks.on("updateCombat", combat => {
-      if (combat?.started && !_active) { try { this.onCombatStart(combat); } catch (_e) {} }
+      if (combat?.started && !_active) { try { this.onCombatStart(combat); } catch (_e) { /* ignore */ } }
     });
     Hooks.on("deleteCombat", () => { try { this.onCombatEnd(); } catch (e) { console.warn(`${MODULE_ID} | deleteCombat skipped:`, e); } });
-
-    for (const h of ["createCombatant", "updateCombatant", "deleteCombatant", "combatTurn", "combatRound"]) {
-      Hooks.on(h, () => recompute());
-    }
-    // A monster being damaged to 0 should retrigger selection.
-    Hooks.on("updateActor", actor => { if (_active && actor?.inCombat) recompute(); });
-    Hooks.on("updateToken", (_doc, change) => { if (_active && change && ("actorData" in change || "delta" in change)) recompute(); });
   }
 };

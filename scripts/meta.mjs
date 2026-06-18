@@ -52,7 +52,7 @@ export const MUSIC = {
 
   ancientRuins:       { name: "Ancient Ruins",            cat: "dungeon", icon: "fa-solid fa-archway" },
   mysticalDungeon:    { name: "Mystical Dungeon",         cat: "dungeon", icon: "fa-solid fa-dungeon" },
-  pitTrap:            { name: "Danger / Trap Sting",      cat: "dungeon", icon: "fa-solid fa-triangle-exclamation" },
+  pitTrap:            { name: "Danger / Trap",            cat: "dungeon", icon: "fa-solid fa-triangle-exclamation" },
 
   arcaneTheme:        { name: "Arcane / Magical",         cat: "sacred", icon: "fa-solid fa-hat-wizard" },
   templeCindaric:     { name: "Fire Temple",              cat: "sacred", icon: "fa-solid fa-fire" },

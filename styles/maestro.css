@@ -32,6 +32,8 @@
 .maestro-director .layout-toggle button.active { background: #44485a; color: #fff; }
 .maestro-director .mood-toggle button[data-mood="calm"].active { background: #2f5d8a; color: #fff; }
 .maestro-director .mood-toggle button[data-mood="tension"].active { background: #9b3030; color: #fff; }
+/* Mood buttons are prominent: auto width, labelled, taller */
+.maestro-director .mood-toggle button { width: auto; min-width: 70px; height: 34px; padding: 0 14px; gap: 6px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
 
 /* Day/night phase indicator */
 .maestro-director .phase-chip {
@@ -143,6 +145,9 @@
 .maestro-director .layout-grid .maestro-item[data-cat="ambience"]   { background: #2a6a5a33; border-color: #45b99566; color: #a7efd6; }
 .maestro-director .layout-grid .maestro-item[data-cat="sfx"]        { background: #7a2a6a33; border-color: #b945a766; color: #efa7e0; }
 .maestro-director .layout-grid .maestro-item.active { background: var(--color-shadow-primary, #ff6400); border-color: #fff; color: #fff; }
+/* Soundboard sub-folder tiles read as navigable (dashed, folder accent) */
+.maestro-director .layout-grid .maestro-item.sb-folder { background: #3a3f4a66; border-style: dashed; border-color: #7a8194; color: #d4d9e6; }
+.maestro-director .layout-grid .maestro-item.sb-folder > i { color: #e8c879; }
 
 .maestro-director .hidden { display: none !important; }
 

@@ -39,10 +39,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
   #search = "";
   /** @type {string} active zone ("music"|"amb"|"weather"|"sfx"), preserved */
   #tab = "music";
-  /** soundboard file cache + the path it was built for */
-  #soundboard = null;
-  #sbPath = null;
+  /** soundboard navigation: current folder, per-folder cache, root tracking */
+  #sbPath = null;            // null = root (the configured folder)
+  #sbCache = new Map();      // path → { dirs, files }
   #sbBusy = false;
+  #sbRootSeen = null;        // detect a changed root path → reset cache + nav
 
   /* ----- singleton ----- */
   static #instance = null;
@@ -120,8 +121,14 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
         })
       : [];
 
-    // Soundboard (optional) — served from the instance cache.
-    const soundboard = sbEnabled ? (this.#soundboard ?? []).map(f => ({ src: f.src, name: f.name, cat: "sfx" })) : [];
+    // Soundboard (optional) — folders + files for the current folder, from cache.
+    const sbRoot = String(game.settings.get(MODULE_ID, "soundboardPath") || "").trim();
+    const sbCur = this.#sbPath || sbRoot;
+    const sbEntry = sbEnabled ? this.#sbCache.get(sbCur) : null;
+    const sbDirs = (sbEntry?.dirs ?? []).map(d => ({ path: d.path, name: d.name }));
+    const soundboard = (sbEntry?.files ?? []).map(f => ({ src: f.src, name: f.name, cat: "sfx" }));
+    const sbAtRoot = !sbEnabled || sbCur === sbRoot;
+    const sbFolderName = sbAtRoot ? "" : prettify(decodeURIComponent(sbCur.replace(/\/+$/, "").split("/").pop() || ""));
 
     const musicGroups = orderedGroups(musicByCat);
     const ambienceGroups = orderedGroups(ambByCat);
@@ -153,7 +160,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       autoWeather: !!game.settings.get(MODULE_ID, "autoWeather"),
       tabMusic: tab === "music", tabAmb: tab === "amb", tabWeather: tab === "weather", tabSfx: tab === "sfx",
       counts,
-      musicGroups, ambienceGroups, weatherItems, soundboard,
+      musicGroups, ambienceGroups, weatherItems, soundboard, sbDirs,
       // Music transport
       hasMusic: !!music.soundscapeId,
       nowMusic: music.soundscapeId ? (this.#cn("music", music.soundscapeId) || musicMeta(music.soundscapeId).name) : "—",
@@ -168,10 +175,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       hasWeather: !!weather.arrangementId,
       nowWeather: weather.arrangementId ? (this.#cn("weather", weather.arrangementId) || WEATHER[weather.arrangementId] || prettify(weather.arrangementId)) : "—",
       // Soundboard meta
-      sbPath: game.settings.get(MODULE_ID, "soundboardPath") || "",
+      sbPath: sbCur,
+      sbAtRoot, sbFolderName,
       sbLoading: sbEnabled && this.#sbBusy,
-      sbWarning: sbEnabled && !game.settings.get(MODULE_ID, "soundboardPath"),
-      sbEmpty: sbEnabled && !this.#sbBusy && this.#soundboard !== null && soundboard.length === 0 && !!game.settings.get(MODULE_ID, "soundboardPath")
+      sbWarning: sbEnabled && !sbRoot,
+      sbEmpty: sbEnabled && !this.#sbBusy && !!sbEntry && soundboard.length === 0 && sbDirs.length === 0 && !!sbRoot
     };
   }
 
@@ -180,14 +188,16 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const on = (sel, evt, fn) => el.querySelector(sel)?.addEventListener(evt, fn);
     const onAll = (sel, evt, fn) => el.querySelectorAll(sel).forEach(n => n.addEventListener(evt, fn));
 
-    // Lazy-load the soundboard folder when enabled / when the path changes.
+    // Lazy-load the current soundboard folder (re-scan when the root changes).
     if (game.settings.get(MODULE_ID, "soundboardEnabled")) {
-      const path = game.settings.get(MODULE_ID, "soundboardPath") || "";
-      if (!this.#sbBusy && (this.#soundboard === null || this.#sbPath !== path)) {
-        this.#sbBusy = true; this.#sbPath = path;
-        Maestro.browseSoundboard()
-          .then(list => { this.#soundboard = list; })
-          .catch(() => { this.#soundboard = []; })
+      const root = String(game.settings.get(MODULE_ID, "soundboardPath") || "").trim();
+      if (this.#sbRootSeen !== root) { this.#sbRootSeen = root; this.#sbCache.clear(); this.#sbPath = null; }
+      const cur = this.#sbPath || root;
+      if (root && !this.#sbBusy && !this.#sbCache.has(cur)) {
+        this.#sbBusy = true;
+        Maestro.browseSoundboard(cur)
+          .then(r => { this.#sbCache.set(cur, r); })
+          .catch(() => { this.#sbCache.set(cur, { dirs: [], files: [] }); })
           .finally(() => { this.#sbBusy = false; this.render(); });
       }
     }
@@ -223,8 +233,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       this.render();
     });
 
-    // Soundboard refresh.
-    on('[data-sb-refresh]', "click", () => { this.#soundboard = null; this.render(); });
+    // Soundboard refresh (rescan) + back-to-main-board.
+    on('[data-sb-refresh]', "click", () => { this.#sbCache.clear(); this.render(); });
+    on('[data-sb-home]', "click", () => { this.#sbPath = null; this.render(); });
 
     // Rename pencil — blank reverts to the built-in name.
     onAll('[data-rename]', "click", async e => {
@@ -237,11 +248,12 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // Item clicks (the row is the button; the pencil stops propagation).
     onAll(".maestro-item", "click", e => {
-      const { kind, id, src } = e.currentTarget.dataset;
+      const { kind, id, src, path } = e.currentTarget.dataset;
       if (kind === "music") Maestro.play(id, { channel: "music" });
       else if (kind === "amb") Maestro.play("emberEnvironment", { channel: "environment", arrangementId: id });
       else if (kind === "weather") Maestro.play("weather", { channel: "weather", arrangementId: id });
-      else if (kind === "sfx") { Maestro.playOneShot(src); return; } // one-shot: no re-render
+      else if (kind === "sbdir") { this.#sbPath = path; this.render(); return; }      // into a sub-folder
+      else if (kind === "sfx") { Maestro.playOneShot(src); this.#sbPath = null; this.render(); return; } // play, then back to main board
       this.render();
     });
     onAll(".maestro-item", "keydown", e => {
@@ -263,9 +275,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     });
     on('[data-reroll]', "click", () => Maestro.rearrange("music"));
 
-    // Stops
-    onAll('[data-stop]', "click", e => { Maestro.stop(e.currentTarget.dataset.stop); this.render(); });
-    on('[data-stopall]', "click", async () => { for (const c of Maestro.CONST.CHANNELS) await Maestro.stop(c); this.render(); });
+    // Stops — fade out at the crossfade pace (the eventual stop re-renders via onChange).
+    onAll('[data-stop]', "click", e => { Maestro.fadeOutChannel(e.currentTarget.dataset.stop); });
+    on('[data-stopall]', "click", () => { Maestro.stopAll(); });
 
     applyFilter(); // re-apply preserved search after a re-render
   }

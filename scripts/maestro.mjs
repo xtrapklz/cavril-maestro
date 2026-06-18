@@ -36,6 +36,8 @@ globalThis.Maestro = {
   /** @type {Record<string, object>} the soundscape data registry */
   soundscapes,
   _pathsResolved: false,
+  /** @type {Set<foundry.audio.Sound>} live soundboard one-shots (for Stop all) */
+  _oneShots: new Set(),
 
   CONST: {
     PLAYLIST_NAME: "Maestro Channels",
@@ -110,10 +112,11 @@ globalThis.Maestro = {
 
   /**
    * Map a calendar weather icon (FontAwesome class from Mini Calendar's forecast)
-   * to one of Maestro's weather arrangements, or null for "no weather sound"
-   * (clear / clouds / snow / wind — Maestro has no snow bed). Tunable here.
+   * to one of Maestro's weather arrangements. Anything that isn't rain/storm/fog
+   * maps to the "clear" bed (so calm weather still has a gentle ambience rather
+   * than silence — Maestro has no snow bed, so snow rides on "clear" too). Tunable here.
    * @param {string} icon
-   * @returns {string|null}
+   * @returns {string} a Maestro weather arrangement id
    */
   weatherArrangementForIcon(icon = "") {
     const s = String(icon).toLowerCase();
@@ -122,7 +125,7 @@ globalThis.Maestro = {
     if (/showers-heavy/.test(s)) return "rainNormal";    // rain / heavy rain
     if (/hail|cloud-rain/.test(s)) return "rainLight";   // light rain / hail
     if (/smog|fog/.test(s)) return "arcaneFog";          // fog
-    return null;                                          // clear / clouds / snow / wind / sun
+    return "clear";                                       // clear / clouds / snow / wind / sun
   },
 
   /**
@@ -228,39 +231,87 @@ globalThis.Maestro = {
   /* ----- Soundboard (one-shot SFX from a configurable folder) ----- */
 
   /**
-   * List the audio files in the configured soundboard folder. Best-effort
-   * across file sources (Forge assets vs local data); returns [] on failure.
-   * @returns {Promise<Array<{src:string,name:string}>>}
+   * Browse one soundboard folder: its sub-folders and its audio files.
+   * Best-effort across file sources (Forge assets vs local data).
+   * @param {string} [path]  folder to browse; defaults to the configured root
+   * @returns {Promise<{dirs:Array<{path:string,name:string}>, files:Array<{src:string,name:string}>}>}
    */
-  async browseSoundboard() {
-    const path = String(game.settings.get(MODULE_ID, "soundboardPath") || "").trim();
-    if (!path) return [];
+  async browseSoundboard(path) {
+    const root = String(game.settings.get(MODULE_ID, "soundboardPath") || "").trim();
+    const target = String(path || root).trim();
+    if (!target) return { dirs: [], files: [] };
     const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
     const AUDIO = [".ogg", ".mp3", ".wav", ".webm", ".m4a", ".opus", ".flac"];
-    const tryBrowse = async source => {
-      try { const r = await FP.browse(source, path); return Array.isArray(r?.files) ? r.files : null; }
-      catch (_e) { return null; }
-    };
-    const order = /^https?:/i.test(path) ? ["forgevtt", "s3", "data"] : ["data", "forgevtt"];
-    let files = null;
-    for (const s of order) { files = await tryBrowse(s); if (files) break; }
-    return (files || [])
+    const order = /^https?:/i.test(target) ? ["forgevtt", "s3", "data"] : ["data", "forgevtt"];
+    let res = null;
+    for (const s of order) { try { const r = await FP.browse(s, target); if (r) { res = r; break; } } catch (_e) { /* try next source */ } }
+    if (!res) return { dirs: [], files: [] };
+    const base = p => decodeURIComponent(String(p).split("?")[0].replace(/\/+$/, "").split("/").pop() || "");
+    const files = (res.files || [])
       .filter(f => AUDIO.some(e => f.toLowerCase().split("?")[0].endsWith(e)))
-      .map(src => {
-        const base = decodeURIComponent(src.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "");
-        return { src, name: prettify(base) };
-      });
+      .map(src => ({ src, name: prettify(base(src).replace(/\.[a-z0-9]+$/i, "")) }));
+    const dirs = (res.dirs || []).map(d => ({ path: d, name: prettify(base(d)) }));
+    return { dirs, files };
   },
 
   /** Play a one-shot effect for everyone (GM-triggered, broadcast to all). */
-  playOneShot(src, { volume } = {}) {
+  async playOneShot(src, { volume } = {}) {
     if (!src) return;
     const v = Number.isFinite(volume) ? volume : 0.8;
     try {
-      return foundry.audio.AudioHelper.play({ src, volume: v, autoplay: true, loop: false }, true);
+      const snd = await foundry.audio.AudioHelper.play({ src, volume: v, autoplay: true, loop: false }, true);
+      if (snd) {
+        this._oneShots.add(snd);
+        const drop = () => this._oneShots.delete(snd);
+        try { snd.addEventListener?.("stop", drop, { once: true }); snd.addEventListener?.("end", drop, { once: true }); } catch (_e) { /* ignore */ }
+      }
+      return snd;
     } catch (e) {
       console.warn(`${MODULE_ID} | one-shot play failed:`, e);
     }
+  },
+
+  /** Stop any soundboard one-shots currently playing on this client (quick fade). */
+  stopOneShots() {
+    const ms = Math.min(800, Math.max(150, (Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8) * 1000));
+    for (const snd of [...this._oneShots]) {
+      try { snd?.stop?.({ volume: 0, fade: ms }); } catch (_e) { /* ignore */ }
+    }
+    this._oneShots.clear();
+  },
+
+  /**
+   * Gracefully fade a channel's audio to silence over the crossfade length, then
+   * stop it (clears state). Ramps the orchestration's master gainNode so the
+   * whole channel fades together; the gain is restored after the stop so the
+   * channel isn't muted next time it plays. Falls back to a plain stop.
+   * @param {string} channel
+   */
+  async fadeOutChannel(channel) {
+    const secs = Math.max(0.1, Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8);
+    const orch = this.sound?.containers?.[channel];
+    const g = orch?.gainNode;
+    const ctx = orch?.context ?? g?.context;
+    if (g && ctx && typeof g.gain?.linearRampToValueAtTime === "function") {
+      const orig = g.gain.value;
+      try {
+        const now = ctx.currentTime;
+        g.gain.cancelScheduledValues(now);
+        g.gain.setValueAtTime(g.gain.value, now);
+        g.gain.linearRampToValueAtTime(0.0001, now + secs);
+      } catch (_e) { /* ignore */ }
+      await new Promise(r => setTimeout(r, secs * 1000 + 40));
+      await this.stop(channel);
+      try { const t = ctx.currentTime; g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(orig, t); } catch (_e) { /* ignore */ }
+    } else {
+      await this.stop(channel);
+    }
+  },
+
+  /** Fade every channel out together and silence soundboard one-shots. */
+  async stopAll() {
+    this.stopOneShots();
+    await Promise.all(this.CONST.CHANNELS.map(c => this.fadeOutChannel(c)));
   },
 
   /* ----- Custom display names (GM-authored, world-shared) ----- */
@@ -405,12 +456,20 @@ Hooks.once("init", () => {
   });
   game.settings.register(MODULE_ID, "combatHordeWeight", {
     name: "Combat Horde Weight",
-    hint: "Extra weight each monster body adds on top of its CR when choosing combat music. Higher = swarms of weak minions hold their theme longer before a boss takes over. 0 = pure CR totals.",
+    hint: "Extra weight each monster body adds on top of its CR when choosing combat music. Higher = swarms of weak minions hold their theme longer. 0 = pure CR totals. (The combat theme is chosen once when combat begins.)",
     scope: "world",
     config: true,
     type: Number,
     default: 1,
     range: { min: 0, max: 5, step: 0.25 }
+  });
+  game.settings.register(MODULE_ID, "combatEndSound", {
+    name: "Combat End Sound",
+    hint: "Optional one-shot played when combat ends (a victory sting, horn, etc.). Full path or Forge URL to an audio file. Leave blank for none.",
+    scope: "world",
+    config: true,
+    type: String,
+    default: ""
   });
 
   game.settings.register(MODULE_ID, "crossfadeSeconds", {
@@ -546,11 +605,15 @@ function onCalendarChange() {
 
 // Time advancing changes both the phase and (often) the weather.
 Hooks.on("updateWorldTime", onCalendarChange);
-// Mini Calendar has no change hook — it writes its weather to a world setting,
-// so react to that setting's update to catch manual weather overrides too.
+// Mini Calendar has no change hook. It writes weather to its own world settings,
+// so react to any of its setting writes (catches manual overrides from the
+// dropdown too). `key` is the full "namespace.key".
 Hooks.on("updateSetting", setting => {
-  if (setting?.key === "wgtgm-mini-calendar.weatherHistoryStore") onCalendarChange();
+  if (typeof setting?.key === "string" && setting.key.startsWith("wgtgm-mini-calendar.")) onCalendarChange();
 });
+// And its HUD re-renders whenever the weather icon updates — a reliable signal
+// for a manual override that might not write a setting we can see.
+Hooks.on("renderCalendarHUD", onCalendarChange);
 
 Hooks.on("getSceneControlButtons", controls => {
   if (!game.user?.isGM) return;
