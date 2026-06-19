@@ -2,28 +2,31 @@
 {{#if empty}}
   <div class="maestro-warn"><i class="fa-solid fa-circle-info"></i> Start an ambience first, then open the mixer to blend its tracks.</div>
 {{else}}
-  <div class="mm-title"><i class="fa-solid fa-wind"></i> {{name}}<button type="button" data-shuffle data-tooltip="Shuffle track order"><i class="fa-solid fa-shuffle"></i></button><button type="button" data-reset data-tooltip="Reset to full mix"><i class="fa-solid fa-rotate-left"></i></button></div>
+  <div class="mm-title"><i class="fa-solid fa-wind"></i> {{name}}</div>
   <div class="mm-stage">
-    <svg class="mm-svg" viewBox="0 0 440 360" data-cx="220" data-cy="172" data-r="118">
-      <circle class="mm-ring" cx="220" cy="172" r="118"></circle>
+    <svg class="mm-svg" viewBox="0 0 440 360" data-cx="220" data-cy="172" data-r="138">
+      <circle class="mm-ring" cx="220" cy="172" r="138"></circle>
       <polygon class="mm-graph" points="{{points}}"></polygon>
-      <circle class="mm-hub" cx="220" cy="172" r="3"></circle>
+      <circle class="mm-hub" cx="220" cy="172" r="4"></circle>
       {{#each tracks}}
       <g class="mm-anchor {{#if muted}}muted{{/if}}" data-id="{{id}}" data-x="{{x}}" data-y="{{y}}">
-        <circle class="mm-node" cx="{{x}}" cy="{{y}}" r="19"></circle>
-        <foreignObject class="mm-ico" x="{{ix}}" y="{{iy}}" width="26" height="26"><div xmlns="http://www.w3.org/1999/xhtml"><i class="{{icon}}"></i></div></foreignObject>
+        <circle class="mm-node" cx="{{x}}" cy="{{y}}" r="24"></circle>
+        <foreignObject class="mm-ico" x="{{ix}}" y="{{iy}}" width="32" height="32"><div xmlns="http://www.w3.org/1999/xhtml"><i class="{{icon}}"></i></div></foreignObject>
         <text class="mm-label" x="{{lx}}" y="{{ly}}" text-anchor="{{anchor}}">{{label}}</text>
       </g>
       {{/each}}
-      <circle class="mm-puck" cx="{{puckX}}" cy="{{puckY}}" r="11"></circle>
+      <circle class="mm-puck" cx="{{puckX}}" cy="{{puckY}}" r="13"></circle>
     </svg>
-    <div class="mm-auto vertical">
-      <button type="button" data-auto class="{{#if auto}}active{{/if}}" data-tooltip="Auto-stroll — drift the mix automatically"><i class="fa-solid {{#if auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
-      <label class="mm-wave" data-tooltip="Waveform"><i class="fa-solid fa-wave-square"></i><select name="auto-wave">{{#each waveOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-      <label data-tooltip="Speed"><i class="fa-solid fa-gauge-high"></i><input type="range" name="auto-speed" min="1" max="20" step="0.5" value="{{autoSpeed}}"></label>
-      <label data-tooltip="Intensity — swing away from the midpoint ring"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-intensity" min="0" max="0.5" step="0.02" value="{{autoIntensity}}"></label>
-    </div>
   </div>
-  <div class="mm-hint">Centre = full mix · edge = solo · hover a node for its name · click = mute · drag = re-order · ▶ auto-strolls</div>
+  <div class="mm-controls">
+    <button type="button" data-auto class="{{#if auto}}active{{/if}}" data-tooltip="Auto-stroll — drift the mix automatically"><i class="fa-solid {{#if auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
+    <label class="mm-wave" data-tooltip="Waveform"><i class="fa-solid fa-wave-square"></i><select name="auto-wave">{{#each waveOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+    <label class="mm-slider" data-tooltip="Speed"><i class="fa-solid fa-gauge-high"></i><input type="range" name="auto-speed" min="1" max="20" step="0.5" value="{{autoSpeed}}"></label>
+    <label class="mm-slider" data-tooltip="Intensity — swing away from the midpoint ring"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-intensity" min="0" max="0.5" step="0.02" value="{{autoIntensity}}"></label>
+    <span class="mm-sep"></span>
+    <button type="button" data-shuffle data-tooltip="Shuffle track order"><i class="fa-solid fa-shuffle"></i></button>
+    <button type="button" data-reset data-tooltip="Reset to full mix"><i class="fa-solid fa-rotate-left"></i></button>
+  </div>
+  <div class="mm-hint">Centre = full mix · drag toward a track to favour it · edge = solo · hover a node for its name · click = mute · drag = re-order · ▶ auto-strolls</div>
 {{/if}}
 </div>

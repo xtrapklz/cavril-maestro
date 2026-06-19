@@ -48,6 +48,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
   #sbCache = new Map();      // path → { dirs, files }
   #sbBusy = false;
   #sbRootSeen = null;        // detect a changed root path → reset cache + nav
+  /** Per-channel cue id currently crossfading OUT (so its tile pulses during a switch). */
+  #fadingOut = { music: null, amb: null, weather: null };
+  #fadeTimers = {};          // channelKind → timeout that clears the fade mark
 
   /* ----- singleton ----- */
   static #instance = null;
@@ -96,6 +99,49 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     else if (kind === "amb") active ? Maestro.fadeOutChannel("environment") : Maestro.play("emberEnvironment", { channel: "environment", arrangementId: id });
     else if (kind === "weather") active ? Maestro.fadeOutChannel("weather") : Maestro.play("weather", { channel: "weather", arrangementId: id });
     return active;
+  }
+
+  /** The cue id currently playing on a channel (amb keyed by base), or null. */
+  #activeCueId(kind) {
+    const cfg = Maestro.sound?.getActiveConfiguration?.() ?? {};
+    if (kind === "music") return cfg.music?.soundscapeId || null;
+    if (kind === "amb") return cfg.environment?.arrangementId ? ambienceBase(cfg.environment.arrangementId) : null;
+    if (kind === "weather") return cfg.weather?.arrangementId || null;
+    return null;
+  }
+
+  /**
+   * Mark the OUTGOING cue of a channel as fading (it crossfades out while the new
+   * one comes in). Re-applied on every render until the crossfade window elapses.
+   */
+  #markFading(kind, id) {
+    if (!id) return;
+    this.#fadingOut[kind] = id;
+    this.#applyFadingMarks();
+    const ms = (Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8) * 1000 + 200;
+    clearTimeout(this.#fadeTimers[kind]);
+    this.#fadeTimers[kind] = setTimeout(() => {
+      this.#fadingOut[kind] = null;
+      for (const it of this.element?.querySelectorAll(".maestro-item.fading") ?? []) {
+        const cue = it.dataset.kind === "amb" ? ambienceBase(it.dataset.id) : it.dataset.id;
+        if (cue === id && !it.classList.contains("active")) it.classList.remove("fading");
+      }
+    }, ms);
+  }
+
+  /** Paint the `.fading` class onto each channel's outgoing tile after a (re)render. */
+  #applyFadingMarks() {
+    const root = this.element;
+    if (!root) return;
+    for (const [kind, id] of Object.entries(this.#fadingOut)) {
+      if (!id) continue;
+      const zone = root.querySelector(`.maestro-zone[data-zone="${kind}"]`);
+      if (!zone) continue;
+      for (const it of zone.querySelectorAll(".maestro-item")) {
+        const cue = kind === "amb" ? ambienceBase(it.dataset.id) : it.dataset.id;
+        if (cue === id && !it.classList.contains("active")) it.classList.add("fading");
+      }
+    }
   }
 
   /** The currently-active tab, falling back to Music if its zone is disabled. */
@@ -447,7 +493,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     onAll('.maestro-zone:not([data-zone="preset"]) .maestro-item', "click", e => {
       const { kind, id, src, path } = e.currentTarget.dataset;
       if (kind === "music" || kind === "amb" || kind === "weather") {                  // click playing = stop, click other = switch
+        const outgoing = this.#activeCueId(kind);
         if (this.#toggleCue(kind, id)) { e.currentTarget.classList.add("fading"); return; }  // stopping → fade-out feedback; refresh clears it
+        const newCue = kind === "amb" ? ambienceBase(id) : id;
+        if (outgoing && outgoing !== newCue) this.#markFading(kind, outgoing);        // switching → outgoing tile fades out during the crossfade
+        return;                                                                       // play() → onChange re-render re-applies the mark
       }
       else if (kind === "sbdir") {                                                     // wildcard folder = random sound; else open
         if (Maestro.isFolderWild?.(path)) { Maestro.playRandomInFolder(path); return; }
@@ -529,6 +579,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     applyFilter(); // re-apply preserved search after a re-render
+    this.#applyFadingMarks(); // re-paint any in-flight crossfade indicators
   }
 
   /** Reorder favorites by moving `dragKey` to just before `targetKey` (per-user). */

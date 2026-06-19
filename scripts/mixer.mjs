@@ -32,9 +32,7 @@ export const CHANNEL_FOR_TAB = { music: "music", amb: "environment" };
 
 /** Shared morpher geometry (viewBox units). Both the pop-out window and the
  * inline Director morpher use it; the inline one is just CSS-sized smaller. */
-export const GEOM = { CX: 220, CY: 172, R: 118, VBW: 440, VBH: 360, GAP: 13 };
-
-const angDist = (a, b) => { let d = Math.abs(a - b) % (2 * Math.PI); return d > Math.PI ? (2 * Math.PI) - d : d; };
+export const GEOM = { CX: 220, CY: 172, R: 138, VBW: 440, VBH: 360, GAP: 15 };
 
 /* Auto-stroll state: the puck rotates while its radius rides a sine wave. */
 let _autoTimer = null, _autoT = 0, _autoAngle = -Math.PI / 2;
@@ -157,7 +155,7 @@ export const MaestroMixer = {
       const c = Math.cos(t.angle);
       return {
         id: t.id, label: prettify(t.id), icon: trackIcon(t.id), muted: t.muted,
-        x: +x.toFixed(1), y: +y.toFixed(1), ix: +(x - 13).toFixed(1), iy: +(y - 13).toFixed(1),
+        x: +x.toFixed(1), y: +y.toFixed(1), ix: +(x - 16).toFixed(1), iy: +(y - 16).toFixed(1),
         lx: +lx.toFixed(1), ly: +(ly + 3).toFixed(1), anchor: c < -0.3 ? "end" : (c > 0.3 ? "start" : "middle")
       };
     });
@@ -190,8 +188,8 @@ export const MaestroMixer = {
       const wave = game.settings.get(MODULE_ID, "autoWave") || "sine";
       const speed = Math.max(0.2, Number(game.settings.get(MODULE_ID, "autoSpeed")) || 6);
       const intensity = Math.max(0, Math.min(0.5, Number(game.settings.get(MODULE_ID, "autoIntensity")) ?? 0.35));
-      _autoT += dt; _autoAngle += (speed * 0.10) * dt;                          // rotation around the circle
-      const r = Math.max(0.02, Math.min(1, 0.5 + intensity * waveform(wave, _autoT * speed * 0.08)));
+      _autoT += dt; _autoAngle += (speed * 0.034) * dt;                         // rotation around the circle (gentle)
+      const r = Math.max(0.02, Math.min(1, 0.5 + intensity * waveform(wave, _autoT * speed * 0.027)));
       this.applyMix(channel, r, _autoAngle);
       if ((n++ % 3) === 0) this.broadcast(channel);       // sync players ~every 0.5s
       movePucks(r, _autoAngle);
@@ -249,18 +247,25 @@ export const MaestroMixer = {
     }
   },
 
-  /** Per-track volume factors for a puck at normalized radius `pr` (0..1), angle `pa`. */
+  /**
+   * Per-track volume factors for a puck at normalized radius `pr` (0..1), angle `pa`.
+   * Volume relates DIRECTLY to the Euclidean distance from the puck point to each
+   * track's anchor on the ring — no angular window, no centre floor. The intensity
+   * graph therefore morphs from a full circle (puck centred → every track full) to a
+   * line/teardrop pinched toward the puck (puck at the rim → nearest track full, far
+   * side → 0):
+   *   d = |anchor − puck| in ring-radius units, 0 (on the track) … 2 (antipode);
+   *   factor = clamp(0,1, 2 − d) → centre (d=1)=full · near rim (d→0)=full · far rim (d→2)=0.
+   */
   factors(channel, pr, pa) {
     const info = this.tracksFor(channel);
     if (!info) return null;
-    const n = Math.max(1, info.tracks.length);
-    const spacing = (2 * Math.PI) / n;                 // angle between adjacent anchors
-    const reach = Math.max(spacing, (1 - pr) * Math.PI); // π at centre → one slot at the rim
+    const r = Math.max(0, Math.min(1, pr));
     const f = {};
     for (const t of info.tracks) {
       if (t.muted) { f[t.id] = 0; continue; }
-      const within = Math.max(0, 1 - angDist(pa, t.angle) / reach);  // 1 at puck angle … 0 at window edge
-      f[t.id] = (1 - pr) + pr * within;                              // centre = base for all; rim = solo nearest
+      const d = Math.sqrt(1 + r * r - 2 * r * Math.cos(pa - t.angle));   // puck→anchor distance (R units)
+      f[t.id] = Math.max(0, Math.min(1, 2 - d));
     }
     return { info, f };
   },

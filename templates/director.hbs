@@ -8,6 +8,7 @@
 
   <div class="maestro-toolbar">
     <input type="search" name="search" placeholder="Search this zone…" value="{{search}}" autocomplete="off">
+    {{#if interiorOn}}<input type="range" name="interior-freq" class="interior-freq" min="200" max="6000" step="100" value="{{interiorFreq}}" data-tooltip="Interior muffle amount — lower = more muffled">{{/if}}
     <span class="phase-chip {{phase}} {{#unless autoDayNight}}off{{/unless}}" data-tooltip="In-world: {{phase}} — auto day/night is {{#if autoDayNight}}on{{else}}off (set it in module settings){{/if}}"><i class="fa-solid {{phaseIcon}}"></i></span>
     <div class="seg layout-toggle" data-tooltip="Layout">
       <button type="button" data-layout="list" class="{{#if layoutList}}active{{/if}}" data-tooltip="List"><i class="fa-solid fa-list"></i></button>
@@ -16,22 +17,17 @@
   </div>
 
   <div class="maestro-tabs" role="tablist">
-    <button type="button" data-tab="music" class="{{#if tabMusic}}active{{/if}}" data-tooltip="Music"><i class="fa-solid fa-music"></i> <span class="cnt">{{counts.music}}</span></button>
-    <button type="button" data-tab="amb" class="{{#if tabAmb}}active{{/if}}" data-tooltip="Ambience"><i class="fa-solid fa-wind"></i> <span class="cnt">{{counts.amb}}</span></button>
+    <button type="button" data-tab="music" class="{{#if tabMusic}}active{{/if}} {{#if hasMusic}}playing{{/if}}" data-tooltip="Music"><i class="fa-solid fa-music"></i> <span class="cnt">{{counts.music}}</span></button>
+    <button type="button" data-tab="amb" class="{{#if tabAmb}}active{{/if}} {{#if hasAmb}}playing{{/if}}" data-tooltip="Ambience"><i class="fa-solid fa-wind"></i> <span class="cnt">{{counts.amb}}</span></button>
     {{#if weatherEnabled}}
-    <button type="button" data-tab="weather" class="{{#if tabWeather}}active{{/if}}" data-tooltip="Weather"><i class="fa-solid fa-cloud-bolt"></i> <span class="cnt">{{counts.weather}}</span></button>
+    <button type="button" data-tab="weather" class="{{#if tabWeather}}active{{/if}} {{#if hasWeather}}playing{{/if}}" data-tooltip="Weather"><i class="fa-solid fa-cloud-bolt"></i> <span class="cnt">{{counts.weather}}</span></button>
     {{/if}}
     {{#if sbEnabled}}
     <button type="button" data-tab="sfx" class="{{#if tabSfx}}active{{/if}}" data-tooltip="Soundboard"><i class="fa-solid fa-bullhorn"></i> <span class="cnt">{{counts.sfx}}</span></button>
     {{/if}}
     <button type="button" data-tab="fav" class="{{#if tabFav}}active{{/if}}" data-tooltip="Favorites"><i class="fa-solid fa-star"></i> <span class="cnt">{{counts.fav}}</span></button>
     <button type="button" data-tab="preset" class="{{#if tabPreset}}active{{/if}}" data-tooltip="Presets"><i class="fa-solid fa-bolt"></i> <span class="cnt">{{counts.preset}}</span></button>
-  </div>
-
-  {{!-- MUSIC ZONE --}}
-  <div class="maestro-zone {{#if tabMusic}}active{{/if}}" data-zone="music">
-    <div class="maestro-now">
-      <span class="np" data-tooltip="Now playing (music)"><i class="fa-solid fa-music"></i> {{nowMusic}}</span>
+    <div class="global-switches">
       <button type="button" class="ct-switch {{#if tensionActive}}on{{/if}}" data-mood-switch {{#unless canTension}}disabled{{/unless}} data-tooltip="Calm ⟷ Tension{{#unless canTension}} (no tense variant for this theme){{/unless}}">
         <span class="ct-opt" data-tooltip="Calm"><i class="fa-solid fa-feather"></i></span>
         <span class="ct-knob"></span>
@@ -42,7 +38,13 @@
         <span class="ct-knob"></span>
         <span class="ct-opt" data-tooltip="Interior"><i class="fa-solid fa-house"></i></span>
       </button>
-      {{#if interiorOn}}<input type="range" name="interior-freq" class="interior-freq" min="200" max="6000" step="100" value="{{interiorFreq}}" data-tooltip="Muffle amount — lower = more muffled">{{/if}}
+    </div>
+  </div>
+
+  {{!-- MUSIC ZONE --}}
+  <div class="maestro-zone {{#if tabMusic}}active{{/if}}" data-zone="music">
+    <div class="maestro-now">
+      <span class="np" data-tooltip="Now playing (music)"><i class="fa-solid fa-music"></i> {{nowMusic}}</span>
     </div>
     <div class="maestro-controls">
       {{#each arrangements}}<button type="button" class="var-btn {{#if selected}}active{{/if}}" data-arrangement="{{id}}">{{label}}</button>{{/each}}
@@ -75,30 +77,29 @@
     </div>
     {{#if ambMorph}}
     <div class="mini-morph" data-channel="environment">
-      <div class="mm-tools">
-        <button type="button" data-shuffle data-tooltip="Shuffle track order"><i class="fa-solid fa-shuffle"></i></button>
-        <button type="button" data-reset data-tooltip="Reset to full mix"><i class="fa-solid fa-rotate-left"></i></button>
-      </div>
       <div class="mm-stage">
-        <svg class="mm-svg" viewBox="0 0 440 360" data-cx="220" data-cy="172" data-r="118">
-          <circle class="mm-ring" cx="220" cy="172" r="118"></circle>
+        <svg class="mm-svg" viewBox="0 0 440 360" data-cx="220" data-cy="172" data-r="138">
+          <circle class="mm-ring" cx="220" cy="172" r="138"></circle>
           <polygon class="mm-graph" points="{{ambMorph.points}}"></polygon>
-          <circle class="mm-hub" cx="220" cy="172" r="3"></circle>
+          <circle class="mm-hub" cx="220" cy="172" r="4"></circle>
           {{#each ambMorph.tracks}}
           <g class="mm-anchor {{#if muted}}muted{{/if}}" data-id="{{id}}" data-x="{{x}}" data-y="{{y}}">
-            <circle class="mm-node" cx="{{x}}" cy="{{y}}" r="19"></circle>
-            <foreignObject class="mm-ico" x="{{ix}}" y="{{iy}}" width="26" height="26"><div xmlns="http://www.w3.org/1999/xhtml"><i class="{{icon}}"></i></div></foreignObject>
+            <circle class="mm-node" cx="{{x}}" cy="{{y}}" r="24"></circle>
+            <foreignObject class="mm-ico" x="{{ix}}" y="{{iy}}" width="32" height="32"><div xmlns="http://www.w3.org/1999/xhtml"><i class="{{icon}}"></i></div></foreignObject>
             <text class="mm-label" x="{{lx}}" y="{{ly}}" text-anchor="{{anchor}}">{{label}}</text>
           </g>
           {{/each}}
-          <circle class="mm-puck" cx="{{ambMorph.puckX}}" cy="{{ambMorph.puckY}}" r="11"></circle>
+          <circle class="mm-puck" cx="{{ambMorph.puckX}}" cy="{{ambMorph.puckY}}" r="13"></circle>
         </svg>
-        <div class="mm-auto vertical">
-          <button type="button" data-auto class="{{#if ambMorph.auto}}active{{/if}}" data-tooltip="Auto-stroll — drift the mix automatically"><i class="fa-solid {{#if ambMorph.auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
-          <label class="mm-wave" data-tooltip="Waveform"><i class="fa-solid fa-wave-square"></i><select name="auto-wave">{{#each ambMorph.waveOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-          <label data-tooltip="Speed"><i class="fa-solid fa-gauge-high"></i><input type="range" name="auto-speed" min="1" max="20" step="0.5" value="{{ambMorph.autoSpeed}}"></label>
-          <label data-tooltip="Intensity — swing away from the midpoint ring"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-intensity" min="0" max="0.5" step="0.02" value="{{ambMorph.autoIntensity}}"></label>
-        </div>
+      </div>
+      <div class="mm-controls">
+        <button type="button" data-auto class="{{#if ambMorph.auto}}active{{/if}}" data-tooltip="Auto-stroll — drift the mix automatically"><i class="fa-solid {{#if ambMorph.auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
+        <label class="mm-wave" data-tooltip="Waveform"><i class="fa-solid fa-wave-square"></i><select name="auto-wave">{{#each ambMorph.waveOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <label class="mm-slider" data-tooltip="Speed"><i class="fa-solid fa-gauge-high"></i><input type="range" name="auto-speed" min="1" max="20" step="0.5" value="{{ambMorph.autoSpeed}}"></label>
+        <label class="mm-slider" data-tooltip="Intensity — swing away from the midpoint ring"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-intensity" min="0" max="0.5" step="0.02" value="{{ambMorph.autoIntensity}}"></label>
+        <span class="mm-sep"></span>
+        <button type="button" data-shuffle data-tooltip="Shuffle track order"><i class="fa-solid fa-shuffle"></i></button>
+        <button type="button" data-reset data-tooltip="Reset to full mix"><i class="fa-solid fa-rotate-left"></i></button>
       </div>
     </div>
     {{/if}}
