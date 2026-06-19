@@ -2,7 +2,7 @@
   "id": "cavril-maestro",
   "title": "Cavril Maestro — Adaptive Music Director",
   "description": "Standalone adaptive, generative, beat-synchronized soundscape engine with Calm/Tension moods and a GM Director panel. System-agnostic. Audio engine ported from Ember's soundscape system; bring your own audio assets via a configurable base path.",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "authors": [
     { "name": "Ricky Johnson", "email": "mail@rickyj.art", "discord": "" }
   ],

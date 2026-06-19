@@ -306,16 +306,17 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); }
     });
 
-    // Music controls
-    on('[name="music-arrangement"]', "change", e => {
+    // Music controls — variation buttons (replace the dropdown)
+    onAll('[data-arrangement]', "click", e => {
       const id = Maestro.sound?.getActiveConfiguration?.().music?.soundscapeId;
-      if (id) Maestro.play(id, { channel: "music", arrangementId: e.target.value });
+      if (id) Maestro.play(id, { channel: "music", arrangementId: e.currentTarget.dataset.arrangement });
     });
-    onAll('[data-mood]', "click", e => {
-      const mood = e.currentTarget.dataset.mood;
+    // Calm/Tension switch — toggles between the calm and tension counterpart.
+    on('[data-mood-switch]', "click", () => {
       const m = Maestro.sound?.getActiveConfiguration?.().music ?? {};
       if (!m.soundscapeId) return;
-      const target = moodVariant(soundscapes[m.soundscapeId], m.arrangementId, mood);
+      const onTension = /tension/i.test(m.arrangementId || "");
+      const target = moodVariant(soundscapes[m.soundscapeId], m.arrangementId, onTension ? "calm" : "tension");
       if (target) Maestro.play(m.soundscapeId, { channel: "music", arrangementId: target });
       this.render();
     });
