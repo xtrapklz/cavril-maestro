@@ -156,7 +156,12 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const sbRoot = String(game.settings.get(MODULE_ID, "soundboardPath") || "").trim();
     const sbCur = this.#sbPath || sbRoot;
     const sbEntry = sbEnabled ? this.#sbCache.get(sbCur) : null;
-    const sbDirs = (sbEntry?.dirs ?? []).map(d => ({ path: d.path, name: Maestro.sbAlias?.(d.path) || d.name }));
+    const sbDirs = (sbEntry?.dirs ?? []).map(d => ({
+      path: d.path, base: d.name,
+      name: this.#cn("folder", d.path) || Maestro.sbAlias?.(d.path) || d.name,
+      icon: this.#icon("folder", d.path, "fa-solid fa-folder"),
+      wild: Maestro.isFolderWild?.(d.path)
+    }));
     // Wildcard sounds: files sharing a name before "_" collapse to one tile that
     // plays a random variation each trigger.
     const sbGroups = {};
@@ -167,11 +172,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     const soundboard = Object.entries(sbGroups).map(([prefix, files]) => {
       if (files.length === 1) {
-        const f = files[0];
-        return { src: f.src, srcs: "", wild: false, favId: f.src, fav: this.#fav("sfx", f.src), tags: this.#tags("sfx", f.src), name: Maestro.sbAlias?.(f.src) || f.name, cat: "sfx" };
+        const f = files[0], base = f.name;
+        return { src: f.src, srcs: "", wild: false, editId: f.src, base, favId: f.src, fav: this.#fav("sfx", f.src), tags: this.#tags("sfx", f.src), name: this.#cn("sfx", f.src) || Maestro.sbAlias?.(f.src) || base, icon: this.#icon("sfx", f.src, "fa-solid fa-volume-high"), cat: "sfx" };
       }
-      const srcs = files.map(f => f.src);
-      return { src: srcs[0], srcs: srcs.join("|"), wild: true, count: files.length, favId: srcs[0], fav: this.#fav("sfx", srcs[0]), tags: this.#tags("sfx", srcs[0]), name: prettify(prefix), cat: "sfx" };
+      const srcs = files.map(f => f.src), base = prettify(prefix);
+      return { src: srcs[0], srcs: srcs.join("|"), wild: true, count: files.length, editId: srcs[0], base, favId: srcs[0], fav: this.#fav("sfx", srcs[0]), tags: this.#tags("sfx", srcs[0]), name: this.#cn("sfx", srcs[0]) || base, icon: this.#icon("sfx", srcs[0], "fa-solid fa-shuffle"), cat: "sfx" };
     });
 
     // Favorites — any starred cue, grouped by type, sorted by sub-type then name.
@@ -389,12 +394,13 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       await this.#promptEdit(kind, editId, name, base, tags || "", Maestro.customIcon?.(kind, editId) || "");
     });
 
-    // Soundboard file/folder rename (non-destructive alias).
-    onAll('[data-sb-rename]', "click", async e => {
+    // Soundboard folder edit (rename alias + icon + wildcard toggle).
+    onAll('[data-folder-edit]', "click", async e => {
       e.stopPropagation();
       const item = e.currentTarget.closest(".maestro-item");
-      const path = item?.dataset.path || item?.dataset.src;
-      if (path) await this.#promptSbAlias(path, item.dataset.name || "");
+      if (!item) return;
+      const path = item.dataset.path;
+      await this.#promptFolderEdit(path, item.dataset.name || "", item.dataset.default || "", Maestro.customIcon?.("folder", path) || "", Maestro.isFolderWild?.(path));
     });
 
     // Favorite star — toggle (per-user; onChange re-renders).
@@ -408,7 +414,10 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     onAll('.maestro-zone:not([data-zone="preset"]) .maestro-item', "click", e => {
       const { kind, id, src, path } = e.currentTarget.dataset;
       if (kind === "music" || kind === "amb" || kind === "weather") this.#toggleCue(kind, id);  // click playing = stop, click other = switch
-      else if (kind === "sbdir") { this.#sbPath = path; this.render(); return; }      // into a sub-folder
+      else if (kind === "sbdir") {                                                     // wildcard folder = random sound; else open
+        if (Maestro.isFolderWild?.(path)) { Maestro.playRandomInFolder(path); return; }
+        this.#sbPath = path; this.render(); return;
+      }
       else if (kind === "sfx") {                                                       // play (random variation if wildcard), then back to main board
         const list = (e.currentTarget.dataset.srcs || "").split("|").filter(Boolean);
         Maestro.playOneShot(list.length ? list[Math.floor(Math.random() * list.length)] : src);
@@ -512,24 +521,25 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  /** Prompt for a non-destructive display alias for a soundboard file/folder. */
-  async #promptSbAlias(path, current) {
+  /** Folder editor: non-destructive name + icon + wildcard (random-on-click) toggle. */
+  async #promptFolderEdit(path, current, base, icon, wild) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
     const esc = s => String(s ?? "").replace(/"/g, "&quot;");
-    let next = null;
-    if (DialogV2?.prompt) {
-      next = await DialogV2.prompt({
-        window: { title: "Rename (alias)", icon: "fa-solid fa-pen" },
-        content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Display name only — the file/folder isn't renamed. Blank restores the original.</p>`
-               + `<input type="text" name="al" value="${esc(current)}" style="width:100%">`,
-        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => btn.form.elements.al.value },
-        rejectClose: false
-      }).catch(() => null);
-    } else {
-      next = window.prompt("Display alias (blank = original):", current ?? "");
-    }
-    if (next === null || next === undefined) return;
-    await Maestro.setSbAlias(path, next);
+    if (!DialogV2?.prompt) return;
+    const res = await DialogV2.prompt({
+      window: { title: `Folder — ${base || ""}`, icon: "fa-solid fa-folder" },
+      content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Display name (blank = original folder name).</p>`
+             + `<input type="text" name="nm" value="${esc(current)}" placeholder="${esc(base)}" style="width:100%;margin-bottom:.5rem">`
+             + `<p style="margin:.25rem 0 .4rem;opacity:.75">Icon — Font Awesome class (blank = folder).</p>`
+             + `<input type="text" name="ic" value="${esc(icon)}" placeholder="fa-solid fa-folder" style="width:100%;margin-bottom:.6rem">`
+             + `<label style="display:flex;gap:7px;align-items:center;font-size:12px"><input type="checkbox" name="wild" ${wild ? "checked" : ""}> Wildcard — click plays a random sound inside (instead of opening it)</label>`,
+      ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, icon: btn.form.elements.ic.value, wild: btn.form.elements.wild.checked }) },
+      rejectClose: false
+    }).catch(() => null);
+    if (!res) return;
+    await Maestro.setCustomName("folder", path, res.name);
+    await Maestro.setCustomIcon("folder", path, res.icon);
+    await Maestro.setFolderWild(path, res.wild);
   }
 
   /** "+" — save a new music variation from a chosen subset of the theme's tracks. */

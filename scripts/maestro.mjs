@@ -444,6 +444,25 @@ globalThis.Maestro = {
     return game.settings.set(MODULE_ID, "sbAliases", map);
   },
 
+  /** Whether a soundboard folder is a wildcard (click = random sound inside, not navigate). */
+  isFolderWild(path) { return !!(game.settings.get(MODULE_ID, "folderWild") || {})[path]; },
+
+  /** Toggle a folder's wildcard mode. */
+  async setFolderWild(path, on) {
+    if (!game.user.isGM) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "folderWild") || {});
+    if (on) map[path] = true; else delete map[path];
+    return game.settings.set(MODULE_ID, "folderWild", map);
+  },
+
+  /** Play a random audio file from a folder (wildcard folder click). */
+  async playRandomInFolder(path) {
+    if (!path) return;
+    const { files } = await this.browseSoundboard(path);
+    if (!files?.length) return ui.notifications?.warn("Maestro: no sounds in that folder.");
+    this.playOneShot(files[Math.floor(Math.random() * files.length)].src);
+  },
+
   /* ----- Custom music variations (saved track subsets within a theme) ----- */
 
   /** Custom variations saved for a music soundscape. */
@@ -595,6 +614,8 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "customIcons", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
   // Soundboard display aliases ({ path: "Alias" }) — non-destructive renames.
   game.settings.register(MODULE_ID, "sbAliases", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
+  // Soundboard folders set to wildcard mode ({ path: true }) — click plays a random sound inside.
+  game.settings.register(MODULE_ID, "folderWild", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
   // Custom music variations ({ soundscapeId: [{ id, name, base, enabled:[trackIds] }] }).
   game.settings.register(MODULE_ID, "musicVariations", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
   // Per-preset member order + aliases ({ tag: { order:[key], aliases:{key:name} } }).
