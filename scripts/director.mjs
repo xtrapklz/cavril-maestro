@@ -190,8 +190,34 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       items: favByCat[k].sort((a, b) => favIdx(a) - favIdx(b) || String(a.icon).localeCompare(String(b.icon)) || a.name.localeCompare(b.name))
     }));
 
-    // Presets — one trigger button per tag in use.
-    const presets = Maestro.allTags?.() ?? [];
+    // Presets — each tag is a group; members shown as sub-elements per category.
+    const tagMap = game.settings.get(MODULE_ID, "tags") || {};
+    const resolveMember = (kind, fid) => {
+      if (kind === "music" && soundscapes[fid]) { const m = musicMeta(fid); return { kind, id: fid, name: this.#cn("music", fid) || m.name, icon: this.#icon("music", fid, m.icon), cat: m.cat }; }
+      if (kind === "amb") { const canon = baseToCanonical[fid] || (envArrs[`${fid}Day`] ? `${fid}Day` : (envArrs[`${fid}Night`] ? `${fid}Night` : fid)); const m = ambienceMeta(canon); return { kind, id: canon, name: this.#cn("amb", fid) || m.name, icon: this.#icon("amb", fid, m.icon), cat: m.cat }; }
+      if (kind === "weather") return { kind, id: fid, name: this.#cn("weather", fid) || WEATHER[fid] || prettify(fid), icon: this.#icon("weather", fid, "fa-solid fa-cloud"), cat: "weather" };
+      if (kind === "sfx") return { kind, src: fid, name: Maestro.sbAlias?.(fid) || prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "")), icon: "fa-solid fa-volume-high", cat: "sfx" };
+      return null;
+    };
+    const byTag = {};
+    for (const [key, arr] of Object.entries(tagMap)) {
+      if (!Array.isArray(arr)) continue;
+      const ci = key.indexOf(":");
+      const m = resolveMember(key.slice(0, ci), key.slice(ci + 1));
+      if (!m) continue;
+      for (const tag of arr) (byTag[tag] ??= []).push(m);
+    }
+    const presets = Object.keys(byTag).sort((a, b) => a.localeCompare(b)).map(tag => {
+      const members = byTag[tag];
+      const cats = Object.keys(CATEGORIES).filter(k => members.some(m => m.cat === k)).map(k => ({
+        cat: k, label: CATEGORIES[k].label, icon: CATEGORIES[k].icon,
+        items: members.filter(m => m.cat === k).sort((a, b) => a.name.localeCompare(b.name))
+      }));
+      return { tag, count: members.length, cats };
+    });
+
+    // Custom music variations saved for the active soundscape.
+    const customVariations = music.soundscapeId ? Maestro.musicVariations(music.soundscapeId).map(v => ({ id: v.id, name: v.name })) : [];
     const sbAtRoot = !sbEnabled || sbCur === sbRoot;
     const sbFolderName = sbAtRoot ? "" : prettify(decodeURIComponent(sbCur.replace(/\/+$/, "").split("/").pop() || ""));
 
@@ -231,7 +257,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       // Music transport
       hasMusic: !!music.soundscapeId,
       nowMusic: music.soundscapeId ? (this.#cn("music", music.soundscapeId) || musicMeta(music.soundscapeId).name) : "—",
-      arrangements,
+      arrangements, customVariations,
       canTension: cur ? hasTension(cur) : false,
       calmActive: !!music.soundscapeId && !onTension,
       tensionActive: onTension,
@@ -309,8 +335,15 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     on('[data-sb-refresh]', "click", () => { this.#sbCache.clear(); this.render(); });
     on('[data-sb-home]', "click", () => { this.#sbPath = null; this.render(); });
 
-    // Presets — one click fires every cue carrying the tag.
+    // Presets — group header fires the scene (one per category); a member plays just itself.
     onAll('[data-preset]', "click", e => Maestro.triggerPreset(e.currentTarget.dataset.preset));
+    onAll('.preset-member', "click", e => {
+      const { kind, id, src } = e.currentTarget.dataset;
+      if (kind === "music") Maestro.play(id, { channel: "music" });
+      else if (kind === "amb") Maestro.play("emberEnvironment", { channel: "environment", arrangementId: id });
+      else if (kind === "weather") Maestro.play("weather", { channel: "weather", arrangementId: id });
+      else if (kind === "sfx") Maestro.playOneShot(src);
+    });
 
     // Rename pencil — blank reverts to the built-in name.
     onAll('[data-rename]', "click", async e => {
@@ -369,6 +402,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       if (target) Maestro.play(m.soundscapeId, { channel: "music", arrangementId: target });
       this.render();
     });
+    onAll('[data-variation]', "click", e => {
+      const sid = Maestro.sound?.getActiveConfiguration?.().music?.soundscapeId;
+      if (sid) Maestro.playMusicVariation(sid, e.currentTarget.dataset.variation);
+    });
+    on('[data-add-variation]', "click", () => this.#promptNewVariation());
     on('[data-reroll]', "click", () => Maestro.rearrange("music"));
     on('[data-morph]', "click", () => Maestro.openMorph?.());
 
@@ -460,5 +498,28 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if (next === null || next === undefined) return;
     await Maestro.setSbAlias(path, next);
+  }
+
+  /** "+" — save a new music variation from a chosen subset of the theme's tracks. */
+  async #promptNewVariation() {
+    const cfg = Maestro.sound?.getActiveConfiguration?.().music ?? {};
+    const info = MaestroMixer.tracksFor?.("music");
+    if (!cfg.soundscapeId || !info) return ui.notifications?.warn("Maestro: play a music theme first.");
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!DialogV2?.prompt) return;
+    const esc = s => String(s ?? "").replace(/"/g, "&quot;");
+    const checks = info.tracks.map(t =>
+      `<label style="display:flex;gap:7px;align-items:center;font-size:12px;padding:2px 0"><input type="checkbox" name="trk" value="${esc(t.id)}" ${t.muted ? "" : "checked"}> ${esc(prettify(t.id))}</label>`
+    ).join("");
+    const res = await DialogV2.prompt({
+      window: { title: "New variation", icon: "fa-solid fa-plus" },
+      content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Save the checked tracks as a new variation of this theme.</p>`
+             + `<input type="text" name="nm" placeholder="Variation name" style="width:100%;margin-bottom:.5rem">`
+             + `<div style="max-height:240px;overflow:auto;border:1px solid var(--color-border-dark,#1e1e1e);border-radius:4px;padding:6px">${checks}</div>`,
+      ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, enabled: [...btn.form.querySelectorAll('input[name="trk"]:checked')].map(c => c.value) }) },
+      rejectClose: false
+    }).catch(() => null);
+    if (!res || !String(res.name || "").trim()) return;
+    await Maestro.saveMusicVariation(cfg.soundscapeId, cfg.arrangementId, res.name, res.enabled);
   }
 }

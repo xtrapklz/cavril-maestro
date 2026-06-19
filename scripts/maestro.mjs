@@ -392,23 +392,26 @@ globalThis.Maestro = {
   },
 
   /**
-   * Trigger a preset: play/fire every cue carrying `tag` on its proper channel
-   * (music/ambience/weather) or as a one-shot (sfx). A one-click scene.
+   * Trigger a preset: play the cues carrying `tag`, but only ONE per exclusive
+   * channel (music / ambience / weather — they'd otherwise stomp each other),
+   * and fire all one-shot SFX. A one-click scene.
    */
   async triggerPreset(tag) {
     if (!game.user.isGM) return ui.notifications?.warn("Maestro: only a GM can fire presets.");
     const all = game.settings.get(MODULE_ID, "tags") || {};
     const env = soundscapes.emberEnvironment?.arrangements || {};
+    const usedChannel = new Set();
     for (const [key, tags] of Object.entries(all)) {
       if (!Array.isArray(tags) || !tags.includes(tag)) continue;
       const ci = key.indexOf(":");
       const kind = key.slice(0, ci), id = key.slice(ci + 1);
       try {
-        if (kind === "music") await this.play(id, { channel: "music" });
+        if (kind === "music") { if (usedChannel.has("music")) continue; usedChannel.add("music"); await this.play(id, { channel: "music" }); }
         else if (kind === "amb") {
+          if (usedChannel.has("environment")) continue; usedChannel.add("environment");
           const canon = env[`${id}Day`] ? `${id}Day` : (env[`${id}Night`] ? `${id}Night` : id);
           await this.play("emberEnvironment", { channel: "environment", arrangementId: canon });
-        } else if (kind === "weather") await this.play("weather", { channel: "weather", arrangementId: id });
+        } else if (kind === "weather") { if (usedChannel.has("weather")) continue; usedChannel.add("weather"); await this.play("weather", { channel: "weather", arrangementId: id }); }
         else if (kind === "sfx") this.playOneShot(id);
       } catch (e) { console.warn(`${MODULE_ID} | preset member failed (${key}):`, e); }
     }
@@ -439,6 +442,51 @@ globalThis.Maestro = {
     const v = String(name || "").trim();
     if (v) map[path] = v; else delete map[path];
     return game.settings.set(MODULE_ID, "sbAliases", map);
+  },
+
+  /* ----- Custom music variations (saved track subsets within a theme) ----- */
+
+  /** Custom variations saved for a music soundscape. */
+  musicVariations(soundscapeId) {
+    const v = (game.settings.get(MODULE_ID, "musicVariations") || {})[soundscapeId];
+    return Array.isArray(v) ? v : [];
+  },
+
+  /** Save a new variation = which tracks are enabled within a theme's arrangement. */
+  async saveMusicVariation(soundscapeId, base, name, enabled) {
+    if (!game.user.isGM) return;
+    const nm = String(name || "").trim();
+    if (!soundscapeId || !nm) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "musicVariations") || {});
+    const list = (map[soundscapeId] ??= []);
+    const id = nm.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `var-${list.length + 1}`;
+    const entry = { id, name: nm, base, enabled: [...new Set(enabled || [])] };
+    const at = list.findIndex(x => x.id === id);
+    if (at >= 0) list[at] = entry; else list.push(entry);
+    return game.settings.set(MODULE_ID, "musicVariations", map);
+  },
+
+  /** Remove a saved variation. */
+  async deleteMusicVariation(soundscapeId, vid) {
+    if (!game.user.isGM) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "musicVariations") || {});
+    if (!map[soundscapeId]) return;
+    map[soundscapeId] = map[soundscapeId].filter(x => x.id !== vid);
+    if (!map[soundscapeId].length) delete map[soundscapeId];
+    return game.settings.set(MODULE_ID, "musicVariations", map);
+  },
+
+  /** Play a saved variation: its base arrangement with only its enabled tracks audible. */
+  async playMusicVariation(soundscapeId, vid) {
+    if (!game.user.isGM) return;
+    const v = this.musicVariations(soundscapeId).find(x => x.id === vid);
+    if (!v) return;
+    await this.play(soundscapeId, { channel: "music", arrangementId: v.base });
+    const arr = soundscapes[soundscapeId]?.arrangements?.[v.base];
+    const factors = {};
+    for (const id of Object.keys(arr?.layers || {})) factors[id] = v.enabled.includes(id) ? 1 : 0;
+    MaestroMixer.setMix("music", `${soundscapeId}:${v.base}`, factors);   // reapply tick lands it once layers come up
+    MaestroMixer.broadcast("music");
   }
 };
 
@@ -520,6 +568,8 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "customIcons", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
   // Soundboard display aliases ({ path: "Alias" }) — non-destructive renames.
   game.settings.register(MODULE_ID, "sbAliases", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
+  // Custom music variations ({ soundscapeId: [{ id, name, base, enabled:[trackIds] }] }).
+  game.settings.register(MODULE_ID, "musicVariations", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
 
   // Auto-pick (and switch) day/night arrangement variants from the calendar.
   game.settings.register(MODULE_ID, "autoDayNight", {

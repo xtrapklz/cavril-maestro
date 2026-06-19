@@ -40,6 +40,8 @@
     </div>
     <div class="maestro-controls">
       {{#each arrangements}}<button type="button" class="var-btn {{#if selected}}active{{/if}}" data-arrangement="{{id}}">{{label}}</button>{{/each}}
+      {{#each customVariations}}<button type="button" class="var-btn custom" data-variation="{{id}}" data-tooltip="Custom variation"><i class="fa-solid fa-sliders"></i> {{name}}</button>{{/each}}
+      <button type="button" class="var-btn icon" data-add-variation data-tooltip="Save a new variation from the current tracks" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-plus"></i></button>
       <button type="button" class="var-btn icon" data-reroll data-tooltip="Re-roll layers" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
       <button type="button" class="var-btn icon" data-stop="music" data-tooltip="Stop music" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-stop"></i></button>
     </div>
@@ -149,7 +151,17 @@
     {{#unless presets.length}}<div class="sb-status"><i class="fa-solid fa-bolt"></i> No presets yet — tag several sounds with the same word (via the ✎ on any sound) and that tag becomes a one-click scene here.</div>{{/unless}}
     <div class="maestro-scroll preset-list">
       {{#each presets}}
-      <button type="button" class="preset-btn" data-preset="{{tag}}" data-tooltip="Fire all {{count}} sound(s) tagged “{{tag}}”"><i class="fa-solid fa-bolt"></i> <span class="nm">{{tag}}</span> <span class="cnt">{{count}}</span></button>
+      <div class="preset-group">
+        <button type="button" class="preset-fire" data-preset="{{tag}}" data-tooltip="Play this scene — one of each category"><i class="fa-solid fa-bolt"></i> <span class="nm">{{tag}}</span> <span class="cnt">{{count}}</span></button>
+        {{#each cats}}
+        <div class="preset-cat"><i class="{{icon}}"></i> {{label}}</div>
+        <div class="preset-members">
+          {{#each items}}
+          <button type="button" class="preset-member" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-tooltip="Play just this"><i class="{{icon}}"></i> {{name}}</button>
+          {{/each}}
+        </div>
+        {{/each}}
+      </div>
       {{/each}}
     </div>
   </div>
