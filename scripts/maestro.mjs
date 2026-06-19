@@ -491,6 +491,8 @@ Hooks.once("init", () => {
     default: {},
     onChange: () => MaestroDirector.refresh()
   });
+  // Per-user manual order of favorites (array of "kind:id" keys).
+  game.settings.register(MODULE_ID, "favOrder", { scope: "client", config: false, type: Array, default: [], onChange: () => MaestroDirector.refresh() });
 
   // Soundboard one-shot volume (used by playOneShot).
   game.settings.register(MODULE_ID, "sfxVolume", {

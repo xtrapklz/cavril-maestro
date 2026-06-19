@@ -182,6 +182,25 @@ export const MaestroMixer = {
     this.broadcast(channel);
   },
 
+  /** Move a track to the circle slot nearest `angle` and persist the order (per theme, client). */
+  async reorderTrack(channel, id, angle) {
+    const info = this.tracksFor(channel);
+    if (!info) return;
+    const ids = info.tracks.map(t => t.id);
+    const n = ids.length;
+    if (n < 2) return;
+    const spacing = (2 * Math.PI) / n;
+    const norm = ((((angle + Math.PI / 2) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+    const slot = Math.round(norm / spacing) % n;
+    const from = ids.indexOf(id);
+    if (from < 0) return;
+    ids.splice(from, 1);
+    ids.splice(Math.min(slot, ids.length), 0, id);
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "trackOrder") || {});
+    map[info.themeKey] = ids;
+    await game.settings.set(MODULE_ID, "trackOrder", map);
+  },
+
   /**
    * One-time timbre analysis of a channel's tracks (cached by src). Best-effort:
    * skips cached entries, tolerates CORS/decode failures.

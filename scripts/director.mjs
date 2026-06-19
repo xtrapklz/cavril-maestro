@@ -207,7 +207,14 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       if (it) (favByCat[it.cat] ??= []).push(it);
     }
-    const favoriteGroups = orderedGroups(favByCat);
+    // Favorites grouped by category, but ordered by the user's manual favOrder
+    // (falling back to sub-type/name for any not yet placed).
+    const favOrder = game.settings.get(MODULE_ID, "favOrder") || [];
+    const favIdx = it => { const i = favOrder.indexOf(`${it.kind}:${it.favId}`); return i < 0 ? 1e6 : i; };
+    const favoriteGroups = Object.keys(CATEGORIES).filter(k => favByCat[k]?.length).map(k => ({
+      key: k, label: CATEGORIES[k].label, icon: CATEGORIES[k].icon,
+      items: favByCat[k].sort((a, b) => favIdx(a) - favIdx(b) || String(a.icon).localeCompare(String(b.icon)) || a.name.localeCompare(b.name))
+    }));
 
     // Presets — one trigger button per tag in use.
     const presets = Maestro.allTags?.() ?? [];
@@ -318,7 +325,20 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const onUp = () => { dragging = false; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); MaestroMixer.broadcast(channel); };
       svg.addEventListener("pointerdown", ev => {
         const anchor = ev.target.closest?.(".mm-anchor");
-        if (anchor) { ev.stopPropagation(); MaestroMixer.toggleMute(channel, anchor.dataset.id); return; }   // dot = mute toggle
+        if (anchor) {                                   // click a dot = mute; drag it = re-order around the circle
+          ev.stopPropagation();
+          const id = anchor.dataset.id, start = toSvg(ev);
+          let moved = false;
+          const aMove = e2 => { const p = toSvg(e2); if (!moved && Math.hypot(p.x - start.x, p.y - start.y) > 6) moved = true; if (moved) { const r = clamp(p.x, p.y); anchor.setAttribute("cx", r.x.toFixed(1)); anchor.setAttribute("cy", r.y.toFixed(1)); } };
+          const aUp = e2 => {
+            window.removeEventListener("pointermove", aMove); window.removeEventListener("pointerup", aUp);
+            if (!moved) { MaestroMixer.toggleMute(channel, id); return; }
+            const p = toSvg(e2);
+            MaestroMixer.reorderTrack(channel, id, Math.atan2(p.y - CY, p.x - CX)).then(() => this.render());
+          };
+          window.addEventListener("pointermove", aMove); window.addEventListener("pointerup", aUp);
+          return;
+        }
         dragging = true; const s = toSvg(ev), p = clamp(s.x, s.y); update(p.x, p.y);
         window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
       });
@@ -433,7 +453,33 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     on('[name="weather-volume"]', "change", e => this.#setVolume("weather", e.target.value));
     on('[name="sfx-volume"]', "change", e => game.settings.set(MODULE_ID, "sfxVolume", Number(e.target.value)));
 
+    // Favorites — drag a tile onto another to reorder (within its category).
+    const favZone = el.querySelector('.maestro-zone[data-zone="fav"]');
+    if (favZone) {
+      let dragKey = null;
+      favZone.querySelectorAll('.maestro-item[draggable="true"]').forEach(it => {
+        it.addEventListener("dragstart", e => { dragKey = it.dataset.favKey; it.classList.add("dragging"); try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragKey || ""); } catch (_e) { /* ignore */ } });
+        it.addEventListener("dragend", () => { dragKey = null; it.classList.remove("dragging"); });
+        it.addEventListener("dragover", e => e.preventDefault());
+        it.addEventListener("drop", e => { e.preventDefault(); const target = it.dataset.favKey; if (dragKey && target && dragKey !== target) this.#reorderFavorite(dragKey, target); });
+      });
+    }
+
     applyFilter(); // re-apply preserved search after a re-render
+  }
+
+  /** Reorder favorites by moving `dragKey` to just before `targetKey` (per-user). */
+  async #reorderFavorite(dragKey, targetKey) {
+    const favs = Maestro.favorites?.() || {};
+    const keys = Object.keys(favs).filter(k => favs[k]);
+    let order = (game.settings.get(MODULE_ID, "favOrder") || []).filter(k => keys.includes(k));
+    for (const k of keys) if (!order.includes(k)) order.push(k);
+    const from = order.indexOf(dragKey);
+    if (from < 0) return;
+    order.splice(from, 1);
+    const ti = order.indexOf(targetKey);
+    order.splice(ti < 0 ? order.length : ti, 0, dragKey);
+    await game.settings.set(MODULE_ID, "favOrder", order);   // onChange → refresh
   }
 
   async #setVolume(channel, value) {

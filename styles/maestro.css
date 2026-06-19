@@ -109,6 +109,10 @@
 .maestro-director .preset-btn .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
 .maestro-director .preset-btn .cnt { font-size: 10px; opacity: .65; }
 
+/* Favorites drag-to-reorder */
+.maestro-director .maestro-zone[data-zone="fav"] .maestro-item { cursor: grab; }
+.maestro-director .maestro-item.dragging { opacity: .4; }
+
 /* Scrolling list */
 .maestro-director .maestro-scroll {
   flex: 1;

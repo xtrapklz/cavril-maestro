@@ -160,7 +160,7 @@
       {{#each favoriteGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item" role="button" tabindex="0" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-fav-id="{{favId}}" data-name="{{name}}" data-cat="{{cat}}">
+        <div class="maestro-item" role="button" tabindex="0" draggable="true" data-fav-key="{{kind}}:{{favId}}" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-fav-id="{{favId}}" data-name="{{name}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
           <button type="button" class="maestro-fav faved" data-fav data-tooltip="Remove from favorites"><i class="fa-solid fa-star"></i></button>
         </div>
