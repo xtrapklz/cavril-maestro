@@ -22,7 +22,7 @@
     <button type="button" data-auto class="{{#if auto}}active{{/if}}" data-tooltip="Auto-stroll — drift the mix automatically"><i class="fa-solid {{#if auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
     <label class="mm-wave" data-tooltip="Waveform"><i class="fa-solid fa-wave-square"></i><select name="auto-wave">{{#each waveOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
     <label class="mm-slider" data-tooltip="Speed"><i class="fa-solid fa-gauge-high"></i><input type="range" name="auto-speed" min="1" max="20" step="0.5" value="{{autoSpeed}}"></label>
-    <label class="mm-slider" data-tooltip="Intensity — swing away from the midpoint ring"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-intensity" min="0" max="0.5" step="0.02" value="{{autoIntensity}}"></label>
+    <label class="mm-slider" data-tooltip="Intensity — how far the mix swings from the midpoint ring (exponential)"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-intensity" min="0" max="1" step="0.01" value="{{autoIntensity}}"></label>
     <span class="mm-sep"></span>
     <button type="button" data-shuffle data-tooltip="Shuffle track order"><i class="fa-solid fa-shuffle"></i></button>
     <button type="button" data-reset data-tooltip="Reset to full mix"><i class="fa-solid fa-rotate-left"></i></button>

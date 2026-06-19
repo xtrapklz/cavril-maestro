@@ -167,7 +167,7 @@ export const MaestroMixer = {
     return {
       name: ambienceMeta(info.arrangementId).name, tracks, puckX: CX, puckY: CY,
       points: graphPoints(info.tracks, Maestro.sound?.containers?.[channel]?._mix?.factors),
-      auto: !!_autoTimer, autoWave: curWave, autoSpeed: num("autoSpeed", 6), autoIntensity: num("autoIntensity", 0.35),
+      auto: !!_autoTimer, autoWave: curWave, autoSpeed: num("autoSpeed", 6), autoIntensity: num("autoIntensity", 0.7),
       waveOptions: WAVES.map(w => ({ value: w, label: w.charAt(0).toUpperCase() + w.slice(1), selected: w === curWave }))
     };
   },
@@ -190,9 +190,10 @@ export const MaestroMixer = {
     const tick = () => {
       const wave = game.settings.get(MODULE_ID, "autoWave") || "sine";
       const speed = Math.max(0.2, Number(game.settings.get(MODULE_ID, "autoSpeed")) || 6);
-      const intensity = Math.max(0, Math.min(0.5, Number(game.settings.get(MODULE_ID, "autoIntensity")) ?? 0.35));
-      _autoT += dt; _autoAngle += (speed * 0.034) * dt;                         // rotation around the circle (gentle)
-      const r = Math.max(0.02, Math.min(1, 0.5 + intensity * waveform(wave, _autoT * speed * 0.027)));
+      const pos = Math.max(0, Math.min(1, Number(game.settings.get(MODULE_ID, "autoIntensity")) ?? 0.7));
+      const intensity = 0.5 * Math.pow(pos, 2.5);                               // exponential slider: fine at the low end, ramps up high
+      _autoT += dt; _autoAngle += (speed * 0.017) * dt;                         // rotation around the circle (very gentle)
+      const r = Math.max(0.02, Math.min(1, 0.5 + intensity * waveform(wave, _autoT * speed * 0.0135)));
       this.applyMix(channel, r, _autoAngle);
       if ((n++ % 3) === 0) this.broadcast(channel);       // sync players ~every 0.5s
       movePucks(r, _autoAngle);

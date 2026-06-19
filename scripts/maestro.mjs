@@ -775,7 +775,7 @@ Hooks.once("init", () => {
   // intensity = how far the radius deviates from the 0.5 midpoint (centre↔rim swing).
   game.settings.register(MODULE_ID, "autoWave", { scope: "client", config: false, type: String, default: "sine" });
   game.settings.register(MODULE_ID, "autoSpeed", { scope: "client", config: false, type: Number, default: 6 });
-  game.settings.register(MODULE_ID, "autoIntensity", { scope: "client", config: false, type: Number, default: 0.35 });
+  game.settings.register(MODULE_ID, "autoIntensity", { scope: "client", config: false, type: Number, default: 0.7 });   // 0..1 slider position; mapped exponentially → swing
 
   // Interior perspective: low-pass the weather + ambience channels and loop a room-tone
   // bed (world-shared so all hear it).
