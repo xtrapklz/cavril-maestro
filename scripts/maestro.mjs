@@ -980,6 +980,57 @@ Hooks.on("hotbarDrop", (bar, data, slot) => {
   return false;
 });
 
+/* ------------------------------------------------------------------ */
+/*  Scene + ambient-sound cue assignment                               */
+/* ------------------------------------------------------------------ */
+
+/** Inject a "Maestro cue" text field (saved as a flag) into a config sheet. */
+function injectCueField(html, doc, flagKey, label, hint) {
+  try {
+    const el = html instanceof HTMLElement ? html : html?.[0];
+    const form = el?.matches?.("form") ? el : el?.querySelector?.("form");
+    if (!form || form.querySelector(`[name="flags.${MODULE_ID}.${flagKey}"]`)) return;
+    const cur = doc?.getFlag?.(MODULE_ID, flagKey) ?? "";
+    const grp = document.createElement("div");
+    grp.className = "form-group";
+    grp.innerHTML = `<label><i class="fa-solid fa-compact-disc"></i> ${label}</label>`
+      + `<div class="form-fields"><input type="text" name="flags.${MODULE_ID}.${flagKey}" value="${foundry.utils.escapeHTML(String(cur))}" placeholder="preset:tavern · music:ordain · amb:bluffs"></div>`
+      + `<p class="hint">${hint}</p>`;
+    const footer = form.querySelector("footer");
+    if (footer) footer.before(grp); else form.appendChild(grp);
+  } catch (e) { console.warn(`${MODULE_ID} | cue field injection skipped:`, e); }
+}
+
+Hooks.on("renderSceneConfig", (app, html) => injectCueField(html, app.document, "onActivate", "Maestro cue on activate", "Plays this Maestro cue/preset when this scene is activated."));
+Hooks.on("renderAmbientSoundConfig", (app, html) => injectCueField(html, app.document, "ref", "Maestro cue on enter", "Fires this Maestro cue/preset when a party token enters this sound's area."));
+
+// Scene activation → fire its assigned cue.
+Hooks.on("updateScene", (scene, changes) => {
+  if (!game.user?.isGM || changes?.active !== true) return;
+  const ref = scene.getFlag(MODULE_ID, "onActivate");
+  if (ref) try { Maestro.triggerRef(ref); } catch (e) { console.warn(`${MODULE_ID} | scene cue skipped:`, e); }
+});
+
+// Ambient-sound proximity → fire when a party token first enters the area.
+const _ambInside = new Map();   // ambientSoundId → boolean (a party token is inside)
+function checkAmbientTriggers() {
+  if (!game.user?.isGM || !canvas?.ready) return;
+  const dim = canvas.dimensions;
+  const pxPerUnit = dim?.distance ? (dim.size / dim.distance) : 1;
+  const tokens = (canvas.tokens?.placeables ?? []).filter(t => t.actor?.hasPlayerOwner);
+  for (const snd of (canvas.sounds?.placeables ?? [])) {
+    const ref = snd.document?.getFlag?.(MODULE_ID, "ref");
+    if (!ref) continue;
+    const cx = snd.document.x, cy = snd.document.y, pr = (snd.document.radius || 0) * pxPerUnit;
+    const inside = tokens.some(t => Math.hypot(t.center.x - cx, t.center.y - cy) <= pr);
+    const was = _ambInside.get(snd.id) || false;
+    if (inside && !was) try { Maestro.triggerRef(ref); } catch (_e) { /* ignore */ }
+    _ambInside.set(snd.id, inside);
+  }
+}
+Hooks.on("updateToken", (_doc, ch) => { if (("x" in (ch || {})) || ("y" in (ch || {}))) checkAmbientTriggers(); });
+Hooks.on("canvasReady", () => { _ambInside.clear(); checkAmbientTriggers(); });
+
 Hooks.on("getSceneControlButtons", controls => {
   if (!game.user?.isGM) return;
   try {
