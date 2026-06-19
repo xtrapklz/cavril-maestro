@@ -72,6 +72,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Whether a cue is favorited. */
   #fav(kind, id) { return !!Maestro.isFavorite?.(kind, id); }
 
+  /** A cue's tags as a comma-joined string (for the dialog + search). */
+  #tags(kind, id) { return (Maestro.tagsFor?.(kind, id) || []).join(", "); }
+
   /** Build the radial morpher view for a channel (anchors placed on a circle), or null. */
   #morphView(channel) {
     const info = MaestroMixer.tracksFor?.(channel);
@@ -119,7 +122,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const m = musicMeta(s.id);
       const custom = this.#cn("music", s.id);
       (musicByCat[m.cat] ??= []).push({
-        id: s.id, favId: s.id, fav: this.#fav("music", s.id), base: m.name, name: custom || m.name, cat: m.cat,
+        id: s.id, favId: s.id, fav: this.#fav("music", s.id), tags: this.#tags("music", s.id), base: m.name, name: custom || m.name, cat: m.cat,
         sub: custom ? m.name : s.id, icon: m.icon, active: s.id === music.soundscapeId
       });
     }
@@ -141,7 +144,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const m = ambienceMeta(canonical);
       const custom = this.#cn("amb", base);
       (ambByCat[m.cat] ??= []).push({
-        id: canonical, renameId: base, base, favId: base, fav: this.#fav("amb", base), cat: m.cat,
+        id: canonical, renameId: base, base, favId: base, fav: this.#fav("amb", base), tags: this.#tags("amb", base), cat: m.cat,
         name: custom || m.name, sub: custom ? m.name : (envArrs[canonical]?.label ?? ""),
         icon: m.icon, active: !!env.arrangementId && base === curBase
       });
@@ -152,7 +155,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       ? Object.keys(soundscapes.weather?.arrangements ?? {}).map(id => {
           const base = WEATHER[id] ?? prettify(id);
           const custom = this.#cn("weather", id);
-          return { id, favId: id, fav: this.#fav("weather", id), base, name: custom || base, cat: "weather", active: id === weather.arrangementId };
+          return { id, favId: id, fav: this.#fav("weather", id), tags: this.#tags("weather", id), base, name: custom || base, cat: "weather", active: id === weather.arrangementId };
         })
       : [];
 
@@ -172,10 +175,10 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const soundboard = Object.entries(sbGroups).map(([prefix, files]) => {
       if (files.length === 1) {
         const f = files[0];
-        return { src: f.src, srcs: "", wild: false, favId: f.src, fav: this.#fav("sfx", f.src), name: f.name, cat: "sfx" };
+        return { src: f.src, srcs: "", wild: false, favId: f.src, fav: this.#fav("sfx", f.src), tags: this.#tags("sfx", f.src), name: f.name, cat: "sfx" };
       }
       const srcs = files.map(f => f.src);
-      return { src: srcs[0], srcs: srcs.join("|"), wild: true, count: files.length, favId: srcs[0], fav: this.#fav("sfx", srcs[0]), name: prettify(prefix), cat: "sfx" };
+      return { src: srcs[0], srcs: srcs.join("|"), wild: true, count: files.length, favId: srcs[0], fav: this.#fav("sfx", srcs[0]), tags: this.#tags("sfx", srcs[0]), name: prettify(prefix), cat: "sfx" };
     });
 
     // Favorites — any starred cue, grouped by type, sorted by sub-type then name.
@@ -202,6 +205,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       if (it) (favByCat[it.cat] ??= []).push(it);
     }
     const favoriteGroups = orderedGroups(favByCat);
+
+    // Presets — one trigger button per tag in use.
+    const presets = Maestro.allTags?.() ?? [];
     const sbAtRoot = !sbEnabled || sbCur === sbRoot;
     const sbFolderName = sbAtRoot ? "" : prettify(decodeURIComponent(sbCur.replace(/\/+$/, "").split("/").pop() || ""));
 
@@ -212,7 +218,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       amb: ambienceGroups.reduce((n, g) => n + g.items.length, 0),
       weather: weatherItems.length,
       sfx: soundboard.length,
-      fav: favoriteGroups.reduce((n, g) => n + g.items.length, 0)
+      fav: favoriteGroups.reduce((n, g) => n + g.items.length, 0),
+      preset: presets.length
     };
 
     // Active music soundscape — arrangement select + mood.
@@ -234,9 +241,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       layout, layoutList: layout === "list", layoutGrid: layout === "grid",
       weatherEnabled, sbEnabled,
       autoWeather: !!game.settings.get(MODULE_ID, "autoWeather"),
-      tabMusic: tab === "music", tabAmb: tab === "amb", tabWeather: tab === "weather", tabSfx: tab === "sfx", tabFav: tab === "fav",
+      tabMusic: tab === "music", tabAmb: tab === "amb", tabWeather: tab === "weather", tabSfx: tab === "sfx", tabFav: tab === "fav", tabPreset: tab === "preset",
       counts,
-      musicGroups, ambienceGroups, weatherItems, soundboard, sbDirs, favoriteGroups,
+      musicGroups, ambienceGroups, weatherItems, soundboard, sbDirs, favoriteGroups, presets,
       // Per-track morphers (one per category, by active theme)
       musicMorph: this.#morphView("music"),
       ambMorph: this.#morphView("environment"),
@@ -320,7 +327,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       this.#search = q;
       const zone = el.querySelector(".maestro-zone.active") ?? el;
       for (const it of zone.querySelectorAll(".maestro-item")) {
-        const hay = `${it.dataset.name ?? ""} ${it.dataset.id ?? ""} ${it.dataset.default ?? ""}`.toLowerCase();
+        const hay = `${it.dataset.name ?? ""} ${it.dataset.id ?? ""} ${it.dataset.default ?? ""} ${it.dataset.tags ?? ""}`.toLowerCase();
         it.classList.toggle("hidden", !!q && !hay.includes(q));
       }
       for (const grp of zone.querySelectorAll(".grp")) {
@@ -351,13 +358,16 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     on('[data-sb-refresh]', "click", () => { this.#sbCache.clear(); this.render(); });
     on('[data-sb-home]', "click", () => { this.#sbPath = null; this.render(); });
 
+    // Presets — one click fires every cue carrying the tag.
+    onAll('[data-preset]', "click", e => Maestro.triggerPreset(e.currentTarget.dataset.preset));
+
     // Rename pencil — blank reverts to the built-in name.
     onAll('[data-rename]', "click", async e => {
       e.stopPropagation();
       const item = e.currentTarget.closest(".maestro-item");
       if (!item) return;
-      const { kind, id, renameId, name, default: base } = item.dataset;
-      await this.#promptRename(kind, renameId || id, name, base);
+      const { kind, id, renameId, name, default: base, tags } = item.dataset;
+      await this.#promptEdit(kind, renameId || id, name, base, tags || "");
     });
 
     // Favorite star — toggle (per-user; onChange re-renders).
@@ -419,23 +429,26 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     if (sound) await sound.update({ volume: Number(value) });
   }
 
-  /** Prompt for a new label for a cue and persist it (blank reverts to default). */
-  async #promptRename(kind, id, current, base) {
+  /** Edit a cue's custom name + tags (blank name reverts to default; tags power Presets). */
+  async #promptEdit(kind, id, current, base, currentTags) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
     const esc = s => String(s ?? "").replace(/"/g, "&quot;");
-    let next = null;
     if (DialogV2?.prompt) {
-      next = await DialogV2.prompt({
-        window: { title: `Rename — ${base ?? id}`, icon: "fa-solid fa-pen" },
-        content: `<p style="margin:.25rem 0 .5rem;opacity:.75">Custom name for <b>${esc(base ?? id)}</b>. Leave blank to use the built-in name.</p>`
-               + `<input type="text" name="nm" value="${esc(current)}" placeholder="${esc(base ?? id)}" style="width:100%">`,
-        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => btn.form.elements.nm.value },
+      const res = await DialogV2.prompt({
+        window: { title: `Edit — ${base ?? id}`, icon: "fa-solid fa-pen" },
+        content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Custom name for <b>${esc(base ?? id)}</b> (blank = built-in name).</p>`
+               + `<input type="text" name="nm" value="${esc(current)}" placeholder="${esc(base ?? id)}" style="width:100%;margin-bottom:.55rem">`
+               + `<p style="margin:.25rem 0 .4rem;opacity:.75">Tags (comma-separated) — searchable, and each tag becomes a Preset.</p>`
+               + `<input type="text" name="tg" value="${esc(currentTags)}" placeholder="combat, night, docks" style="width:100%">`,
+        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, tags: btn.form.elements.tg.value }) },
         rejectClose: false
       }).catch(() => null);
+      if (!res) return;
+      await Maestro.setCustomName(kind, id, res.name);
+      await Maestro.setTags(kind, id, String(res.tags || "").split(",").map(s => s.trim()).filter(Boolean));
     } else {
-      next = window.prompt(`Custom name for "${base ?? id}" (blank = default):`, current ?? "");
+      const next = window.prompt(`Custom name for "${base ?? id}" (blank = default):`, current ?? "");
+      if (next !== null) await Maestro.setCustomName(kind, id, next);
     }
-    if (next === null || next === undefined) return; // cancelled
-    await Maestro.setCustomName(kind, id, next); // onChange → refresh()
   }
 }

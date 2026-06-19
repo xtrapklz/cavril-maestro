@@ -25,6 +25,7 @@
     <button type="button" data-tab="sfx" class="{{#if tabSfx}}active{{/if}}"><i class="fa-solid fa-bullhorn"></i> Soundboard <span class="cnt">{{counts.sfx}}</span></button>
     {{/if}}
     <button type="button" data-tab="fav" class="{{#if tabFav}}active{{/if}}" data-tooltip="Favorites"><i class="fa-solid fa-star"></i> <span class="cnt">{{counts.fav}}</span></button>
+    <button type="button" data-tab="preset" class="{{#if tabPreset}}active{{/if}}" data-tooltip="Presets (tag scenes)"><i class="fa-solid fa-bolt"></i> <span class="cnt">{{counts.preset}}</span></button>
   </div>
 
   {{!-- MUSIC ZONE --}}
@@ -59,7 +60,7 @@
       {{#each musicGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="music" data-id="{{id}}" data-fav-id="{{favId}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="music" data-id="{{id}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
           <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
           <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
@@ -92,7 +93,7 @@
       {{#each ambienceGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="amb" data-id="{{id}}" data-rename-id="{{renameId}}" data-fav-id="{{favId}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="amb" data-id="{{id}}" data-rename-id="{{renameId}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
           <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
           <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
@@ -112,7 +113,7 @@
     </div>
     <div class="maestro-scroll layout-{{layout}}">
       {{#each weatherItems}}
-      <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="weather" data-id="{{id}}" data-fav-id="{{favId}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+      <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="weather" data-id="{{id}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
         <i class="fa-solid fa-cloud"></i><span class="nm">{{name}}</span>
         <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
         <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
@@ -140,7 +141,7 @@
       </div>
       {{/each}}
       {{#each soundboard}}
-      <div class="maestro-item {{#if wild}}sb-wild{{/if}}" role="button" tabindex="0" data-kind="sfx" data-src="{{src}}" data-srcs="{{srcs}}" data-fav-id="{{favId}}" data-name="{{name}}" data-cat="{{cat}}">
+      <div class="maestro-item {{#if wild}}sb-wild{{/if}}" role="button" tabindex="0" data-kind="sfx" data-src="{{src}}" data-srcs="{{srcs}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-cat="{{cat}}">
         <i class="fa-solid {{#if wild}}fa-shuffle{{else}}fa-volume-high{{/if}}"></i><span class="nm">{{name}}</span>
         {{#if wild}}<span class="wild-badge" data-tooltip="{{count}} variations — random each play">{{count}}</span>{{/if}}
         <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
@@ -162,6 +163,16 @@
           <button type="button" class="maestro-fav faved" data-fav data-tooltip="Remove from favorites"><i class="fa-solid fa-star"></i></button>
         </div>
         {{/each}}
+      {{/each}}
+    </div>
+  </div>
+
+  {{!-- PRESETS ZONE (one trigger per tag) --}}
+  <div class="maestro-zone {{#if tabPreset}}active{{/if}}" data-zone="preset">
+    {{#unless presets.length}}<div class="sb-status"><i class="fa-solid fa-bolt"></i> No presets yet — tag several sounds with the same word (via the ✎ on any sound) and that tag becomes a one-click scene here.</div>{{/unless}}
+    <div class="maestro-scroll preset-list">
+      {{#each presets}}
+      <button type="button" class="preset-btn" data-preset="{{tag}}" data-tooltip="Fire all {{count}} sound(s) tagged “{{tag}}”"><i class="fa-solid fa-bolt"></i> <span class="nm">{{tag}}</span> <span class="cnt">{{count}}</span></button>
       {{/each}}
     </div>
   </div>

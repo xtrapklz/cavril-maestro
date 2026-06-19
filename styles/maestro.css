@@ -98,6 +98,17 @@
 .maestro-director .layout-grid .maestro-item.sb-wild { border-style: dashed; }
 .maestro-director .wild-badge { position: absolute; bottom: 2px; right: 3px; font-size: 9px; font-weight: 700; opacity: .75; line-height: 1; }
 
+/* Presets — big one-click tag-scene buttons */
+.maestro-director .preset-list { display: flex; flex-wrap: wrap; gap: 6px; align-content: start; }
+.maestro-director .preset-btn {
+  flex: 1 1 calc(50% - 6px); min-height: 46px; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--color-border-dark, #1e1e1e); background: rgba(255,255,255,0.05);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 600;
+}
+.maestro-director .preset-btn:hover { background: var(--color-shadow-primary, #ff6400); color: #fff; border-color: var(--color-shadow-primary, #ff6400); }
+.maestro-director .preset-btn .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
+.maestro-director .preset-btn .cnt { font-size: 10px; opacity: .65; }
+
 /* Scrolling list */
 .maestro-director .maestro-scroll {
   flex: 1;

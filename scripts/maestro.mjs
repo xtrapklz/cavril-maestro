@@ -359,6 +359,55 @@ globalThis.Maestro = {
     const key = `${kind}:${id}`;
     if (map[key]) delete map[key]; else map[key] = true;
     return game.settings.set(MODULE_ID, "favorites", map);
+  },
+
+  /* ----- Tags + presets ----- */
+
+  /** Tags assigned to a cue (array). */
+  tagsFor(kind, id) {
+    const t = (game.settings.get(MODULE_ID, "tags") || {})[`${kind}:${id}`];
+    return Array.isArray(t) ? t : [];
+  },
+
+  /** Set a cue's tags (array; empty clears). World-shared so presets are consistent. */
+  async setTags(kind, id, tags) {
+    if (!game.user.isGM) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "tags") || {});
+    const key = `${kind}:${id}`;
+    const clean = [...new Set((tags || []).map(s => String(s).trim()).filter(Boolean))];
+    if (clean.length) map[key] = clean; else delete map[key];
+    return game.settings.set(MODULE_ID, "tags", map);
+  },
+
+  /** All distinct tags in use, with how many cues carry each. */
+  allTags() {
+    const all = game.settings.get(MODULE_ID, "tags") || {};
+    const counts = {};
+    for (const arr of Object.values(all)) if (Array.isArray(arr)) for (const t of arr) counts[t] = (counts[t] || 0) + 1;
+    return Object.entries(counts).map(([tag, count]) => ({ tag, count })).sort((a, b) => a.tag.localeCompare(b.tag));
+  },
+
+  /**
+   * Trigger a preset: play/fire every cue carrying `tag` on its proper channel
+   * (music/ambience/weather) or as a one-shot (sfx). A one-click scene.
+   */
+  async triggerPreset(tag) {
+    if (!game.user.isGM) return ui.notifications?.warn("Maestro: only a GM can fire presets.");
+    const all = game.settings.get(MODULE_ID, "tags") || {};
+    const env = soundscapes.emberEnvironment?.arrangements || {};
+    for (const [key, tags] of Object.entries(all)) {
+      if (!Array.isArray(tags) || !tags.includes(tag)) continue;
+      const ci = key.indexOf(":");
+      const kind = key.slice(0, ci), id = key.slice(ci + 1);
+      try {
+        if (kind === "music") await this.play(id, { channel: "music" });
+        else if (kind === "amb") {
+          const canon = env[`${id}Day`] ? `${id}Day` : (env[`${id}Night`] ? `${id}Night` : id);
+          await this.play("emberEnvironment", { channel: "environment", arrangementId: canon });
+        } else if (kind === "weather") await this.play("weather", { channel: "weather", arrangementId: id });
+        else if (kind === "sfx") this.playOneShot(id);
+      } catch (e) { console.warn(`${MODULE_ID} | preset member failed (${key}):`, e); }
+    }
   }
 };
 
@@ -430,6 +479,9 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "trackMute", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
   // Morpher: custom track order around the circle per theme (client).
   game.settings.register(MODULE_ID, "trackOrder", { scope: "client", config: false, type: Object, default: {} });
+
+  // Tags per cue ({ "kind:id": ["tag", …] }) — searchable + power the Presets tab.
+  game.settings.register(MODULE_ID, "tags", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
 
   // Auto-pick (and switch) day/night arrangement variants from the calendar.
   game.settings.register(MODULE_ID, "autoDayNight", {
