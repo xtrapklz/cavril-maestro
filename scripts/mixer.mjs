@@ -92,15 +92,24 @@ export const MaestroMixer = {
     return { channel, themeKey, soundscapeId: cfg.soundscapeId, arrangementId: cfg.arrangementId, tracks };
   },
 
-  /** Per-track volume factors for a puck at normalized radius `pr` (0..1), angle `pa`. */
-  factors(channel, pr, pa, { sharpness = 2.4 } = {}) {
+  /**
+   * Per-track volume factors for a puck at normalized radius `pr` (0..1), angle `pa`.
+   * The "window" of audible tracks shrinks from the whole circle (centre = every
+   * track at base) to ~one slot at the rim (solo the nearest one or two). This is
+   * count-adaptive: the edge isolates 1–2 tracks no matter how many stems a theme
+   * has, and away-tracks level down as the puck moves outward.
+   */
+  factors(channel, pr, pa) {
     const info = this.tracksFor(channel);
     if (!info) return null;
+    const n = Math.max(1, info.tracks.length);
+    const spacing = (2 * Math.PI) / n;                 // angle between adjacent anchors
+    const reach = Math.max(spacing, (1 - pr) * Math.PI); // π at centre → one slot at the rim
     const f = {};
     for (const t of info.tracks) {
       if (t.muted) { f[t.id] = 0; continue; }
-      const close = (1 + Math.cos(angDist(pa, t.angle))) / 2;   // 1 aligned … 0 opposite
-      f[t.id] = (1 - pr) + pr * Math.pow(close, sharpness);     // centre = all base, edge = solo nearest
+      const within = Math.max(0, 1 - angDist(pa, t.angle) / reach);  // 1 at puck angle … 0 at window edge
+      f[t.id] = (1 - pr) + pr * within;                              // centre = base for all; rim = solo nearest
     }
     return { info, f };
   },

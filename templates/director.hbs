@@ -140,8 +140,9 @@
       </div>
       {{/each}}
       {{#each soundboard}}
-      <div class="maestro-item" role="button" tabindex="0" data-kind="sfx" data-src="{{src}}" data-fav-id="{{favId}}" data-name="{{name}}" data-cat="{{cat}}">
-        <i class="fa-solid fa-volume-high"></i><span class="nm">{{name}}</span>
+      <div class="maestro-item {{#if wild}}sb-wild{{/if}}" role="button" tabindex="0" data-kind="sfx" data-src="{{src}}" data-srcs="{{srcs}}" data-fav-id="{{favId}}" data-name="{{name}}" data-cat="{{cat}}">
+        <i class="fa-solid {{#if wild}}fa-shuffle{{else}}fa-volume-high{{/if}}"></i><span class="nm">{{name}}</span>
+        {{#if wild}}<span class="wild-badge" data-tooltip="{{count}} variations — random each play">{{count}}</span>{{/if}}
         <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
       </div>
       {{/each}}

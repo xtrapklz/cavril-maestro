@@ -94,6 +94,10 @@
 .maestro-director .mm-puck { fill: var(--color-shadow-primary, #ff6400); stroke: #fff; stroke-width: 2; cursor: grab; filter: drop-shadow(0 0 4px rgba(0,0,0,.5)); }
 .maestro-director .mm-hint { font-size: 9px; opacity: .5; text-align: center; }
 
+/* Wildcard soundboard tile badge (random-variation count) */
+.maestro-director .layout-grid .maestro-item.sb-wild { border-style: dashed; }
+.maestro-director .wild-badge { position: absolute; bottom: 2px; right: 3px; font-size: 9px; font-weight: 700; opacity: .75; line-height: 1; }
+
 /* Scrolling list */
 .maestro-director .maestro-scroll {
   flex: 1;

@@ -66,7 +66,7 @@ export const MUSIC = {
 
   ankaristTheme:      { name: "Ominous Theme",            cat: "theme", icon: "fa-solid fa-eye" },
   lylaTheme:          { name: "Wistful Theme",            cat: "theme", icon: "fa-solid fa-feather" },
-  sinTheme:           { name: "Sinister / Villain Theme", cat: "theme", icon: "fa-solid fa-mask" },
+  sinTheme:           { name: "Whimsical Theme",          cat: "theme", icon: "fa-solid fa-wand-sparkles" },
   seydiriTheme:       { name: "Sunken Depths",            cat: "theme", icon: "fa-solid fa-water-ladder" },
   innerRealmsMusic:   { name: "Ethereal / Dreamlike",     cat: "theme", icon: "fa-solid fa-cloud-moon" }
 };

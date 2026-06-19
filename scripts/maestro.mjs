@@ -250,7 +250,7 @@ globalThis.Maestro = {
     const base = p => decodeURIComponent(String(p).split("?")[0].replace(/\/+$/, "").split("/").pop() || "");
     const files = (res.files || [])
       .filter(f => AUDIO.some(e => f.toLowerCase().split("?")[0].endsWith(e)))
-      .map(src => ({ src, name: prettify(base(src).replace(/\.[a-z0-9]+$/i, "")) }));
+      .map(src => { const stem = base(src).replace(/\.[a-z0-9]+$/i, ""); return { src, stem, name: prettify(stem) }; });
     const dirs = (res.dirs || []).map(d => ({ path: d, name: prettify(base(d)) }));
     return { dirs, files };
   },

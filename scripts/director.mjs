@@ -161,7 +161,22 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const sbCur = this.#sbPath || sbRoot;
     const sbEntry = sbEnabled ? this.#sbCache.get(sbCur) : null;
     const sbDirs = (sbEntry?.dirs ?? []).map(d => ({ path: d.path, name: d.name }));
-    const soundboard = (sbEntry?.files ?? []).map(f => ({ src: f.src, favId: f.src, fav: this.#fav("sfx", f.src), name: f.name, cat: "sfx" }));
+    // Wildcard sounds: files sharing a name before "_" collapse to one tile that
+    // plays a random variation each trigger.
+    const sbGroups = {};
+    for (const f of (sbEntry?.files ?? [])) {
+      const stem = String(f.stem ?? f.name);
+      const prefix = stem.includes("_") ? stem.slice(0, stem.indexOf("_")) : stem;
+      (sbGroups[prefix] ??= []).push(f);
+    }
+    const soundboard = Object.entries(sbGroups).map(([prefix, files]) => {
+      if (files.length === 1) {
+        const f = files[0];
+        return { src: f.src, srcs: "", wild: false, favId: f.src, fav: this.#fav("sfx", f.src), name: f.name, cat: "sfx" };
+      }
+      const srcs = files.map(f => f.src);
+      return { src: srcs[0], srcs: srcs.join("|"), wild: true, count: files.length, favId: srcs[0], fav: this.#fav("sfx", srcs[0]), name: prettify(prefix), cat: "sfx" };
+    });
 
     // Favorites — any starred cue, grouped by type, sorted by sub-type then name.
     const favByCat = {};
@@ -359,7 +374,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       else if (kind === "amb") Maestro.play("emberEnvironment", { channel: "environment", arrangementId: id });
       else if (kind === "weather") Maestro.play("weather", { channel: "weather", arrangementId: id });
       else if (kind === "sbdir") { this.#sbPath = path; this.render(); return; }      // into a sub-folder
-      else if (kind === "sfx") { Maestro.playOneShot(src); this.#sbPath = null; this.render(); return; } // play, then back to main board
+      else if (kind === "sfx") {                                                       // play (random variation if wildcard), then back to main board
+        const list = (e.currentTarget.dataset.srcs || "").split("|").filter(Boolean);
+        Maestro.playOneShot(list.length ? list[Math.floor(Math.random() * list.length)] : src);
+        this.#sbPath = null; this.render(); return;
+      }
       this.render();
     });
     onAll(".maestro-item", "keydown", e => {
