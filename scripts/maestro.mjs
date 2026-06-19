@@ -382,6 +382,29 @@ globalThis.Maestro = {
     await Promise.all(this.CONST.CHANNELS.map(c => this.fadeOutChannel(c)));
   },
 
+  /**
+   * Interior perspective: route the WEATHER channel through a low-pass filter so
+   * the same weather sounds muffled (as if heard from inside). `freq` is the
+   * cutoff in Hz (lower = more muffled). Off = bypass.
+   */
+  setInteriorFilter(on, freq) {
+    const orch = this.sound?.containers?.weather;
+    const g = orch?.gainNode;
+    const ctx = orch?.context ?? g?.context;
+    if (!g || !ctx) return;
+    const dest = orch.destination ?? ctx.destination;
+    try {
+      if (on) {
+        orch._lpf ||= ctx.createBiquadFilter();
+        orch._lpf.type = "lowpass";
+        orch._lpf.frequency.value = Math.max(120, Math.min(20000, Number(freq) || 800));
+        if (!orch._lpfWired) { g.disconnect(); g.connect(orch._lpf); orch._lpf.connect(dest); orch._lpfWired = true; }
+      } else if (orch._lpfWired) {
+        g.disconnect(); orch._lpf?.disconnect(); g.connect(dest); orch._lpfWired = false;
+      }
+    } catch (e) { console.warn(`${MODULE_ID} | interior filter skipped:`, e); }
+  },
+
   /* ----- Custom display names (GM-authored, world-shared) ----- */
 
   /**
@@ -665,6 +688,16 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "autoAmp", { scope: "client", config: false, type: Number, default: 0.4 });
   game.settings.register(MODULE_ID, "autoFreq", { scope: "client", config: false, type: Number, default: 0.06 });
 
+  // Interior perspective: low-pass the weather channel (world-shared so all hear it).
+  game.settings.register(MODULE_ID, "interiorOn", {
+    scope: "world", config: false, type: Boolean, default: false,
+    onChange: v => { try { Maestro.setInteriorFilter(v, game.settings.get(MODULE_ID, "interiorFreq")); } catch (_e) {} MaestroDirector.refresh(); }
+  });
+  game.settings.register(MODULE_ID, "interiorFreq", {
+    scope: "world", config: false, type: Number, default: 900,
+    onChange: v => { try { if (game.settings.get(MODULE_ID, "interiorOn")) Maestro.setInteriorFilter(true, v); } catch (_e) {} }
+  });
+
   // Soundboard one-shot volume (used by playOneShot).
   game.settings.register(MODULE_ID, "sfxVolume", {
     scope: "world",
@@ -891,6 +924,9 @@ Hooks.once("ready", async () => {
 
     // Follow the calendar's current weather (if Mini Calendar is present).
     try { Maestro.syncWeatherFromCalendar(); } catch (e) { console.warn(`${MODULE_ID} | initial weather sync skipped:`, e); }
+
+    // Restore the interior-perspective filter if it was left on.
+    try { if (game.settings.get(MODULE_ID, "interiorOn")) Maestro.setInteriorFilter(true, game.settings.get(MODULE_ID, "interiorFreq")); } catch (_e) { /* ignore */ }
 
     // Per-track morpher: apply mixes pushed by the GM, and keep the mix alive
     // across generative re-rolls with a light re-apply tick.

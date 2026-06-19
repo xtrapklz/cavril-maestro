@@ -264,3 +264,20 @@ a.maestro-link { display: inline-flex; align-items: center; gap: 4px; padding: 0
 a.maestro-link:hover { background: var(--color-shadow-primary, #ff6400); color: #fff; }
 a.maestro-link i { font-size: .85em; opacity: .85; }
 .maestro-director .preset-label[draggable="true"] { cursor: grab; }
+
+/* Live intensity graph (radar polygon over the morpher) */
+.mm-graph { fill: rgba(255,100,0,0.15); stroke: var(--color-shadow-primary, #ff6400); stroke-width: 1.5; stroke-linejoin: round; pointer-events: none; }
+
+/* Morpher stage: circle + vertical auto controls side by side (saves height) */
+.mm-stage { display: flex; align-items: stretch; gap: 6px; }
+.mm-stage .mm-svg { flex: 1 1 auto; min-width: 0; }
+.mm-auto.vertical { flex: 0 0 auto; flex-direction: column; align-items: center; gap: 8px; padding: 4px 2px; flex-wrap: nowrap; }
+.mm-auto.vertical label { flex-direction: column; gap: 3px; flex: 0 0 auto; width: auto; min-width: 0; opacity: .7; }
+.mm-auto.vertical label input[type="range"] { writing-mode: vertical-lr; direction: rtl; width: 10px; height: 60px; min-width: 0; flex: 0 0 auto; }
+
+/* Interior/exterior switch (reuses .ct-switch) + cutoff slider */
+.maestro-director .ct-switch.interior { background: #5a4a2a44; }
+.maestro-director .ct-switch.interior .ct-knob { background: #6b6b6b; }
+.maestro-director .ct-switch.interior.on { background: #6a4a2a66; }
+.maestro-director .ct-switch.interior.on .ct-knob { background: #b9851f; }
+.maestro-director .maestro-now .interior-freq { flex: 0 1 78px; min-width: 48px; }

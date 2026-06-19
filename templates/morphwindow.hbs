@@ -3,24 +3,27 @@
   <div class="maestro-warn"><i class="fa-solid fa-circle-info"></i> Start an ambience first, then open the mixer to blend its tracks.</div>
 {{else}}
   <div class="mm-title"><i class="fa-solid fa-wind"></i> {{name}}<button type="button" data-shuffle data-tooltip="Shuffle track order"><i class="fa-solid fa-shuffle"></i></button><button type="button" data-reset data-tooltip="Reset to full mix"><i class="fa-solid fa-rotate-left"></i></button></div>
-  <svg class="mm-svg" viewBox="0 0 440 360" data-cx="220" data-cy="172" data-r="118">
-    <circle class="mm-ring" cx="220" cy="172" r="118"></circle>
-    <circle class="mm-hub" cx="220" cy="172" r="3"></circle>
-    {{#each tracks}}
-    <g class="mm-anchor {{#if muted}}muted{{/if}}" data-id="{{id}}" data-x="{{x}}" data-y="{{y}}">
-      <circle class="mm-node" cx="{{x}}" cy="{{y}}" r="15"></circle>
-      <foreignObject class="mm-ico" x="{{ix}}" y="{{iy}}" width="22" height="22"><div xmlns="http://www.w3.org/1999/xhtml"><i class="{{icon}}"></i></div></foreignObject>
-      <text class="mm-label" x="{{lx}}" y="{{ly}}" text-anchor="{{anchor}}">{{label}}</text>
-    </g>
-    {{/each}}
-    <circle class="mm-puck" cx="{{puckX}}" cy="{{puckY}}" r="11"></circle>
-  </svg>
-  <div class="mm-auto">
-    <button type="button" data-auto class="{{#if auto}}active{{/if}}" data-tooltip="Auto-stroll — rotate the mix automatically"><i class="fa-solid {{#if auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
-    <label data-tooltip="Rotation speed"><i class="fa-solid fa-rotate"></i><input type="range" name="auto-rate" min="2" max="60" step="1" value="{{autoRate}}"></label>
-    <label data-tooltip="Sway amount"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-amp" min="0" max="0.5" step="0.02" value="{{autoAmp}}"></label>
-    <label data-tooltip="Sway speed"><i class="fa-solid fa-wave-square"></i><input type="range" name="auto-freq" min="0.01" max="0.3" step="0.01" value="{{autoFreq}}"></label>
+  <div class="mm-stage">
+    <svg class="mm-svg" viewBox="0 0 440 360" data-cx="220" data-cy="172" data-r="118">
+      <circle class="mm-ring" cx="220" cy="172" r="118"></circle>
+      <polygon class="mm-graph" points="{{points}}"></polygon>
+      <circle class="mm-hub" cx="220" cy="172" r="3"></circle>
+      {{#each tracks}}
+      <g class="mm-anchor {{#if muted}}muted{{/if}}" data-id="{{id}}" data-x="{{x}}" data-y="{{y}}">
+        <circle class="mm-node" cx="{{x}}" cy="{{y}}" r="19"></circle>
+        <foreignObject class="mm-ico" x="{{ix}}" y="{{iy}}" width="26" height="26"><div xmlns="http://www.w3.org/1999/xhtml"><i class="{{icon}}"></i></div></foreignObject>
+        <text class="mm-label" x="{{lx}}" y="{{ly}}" text-anchor="{{anchor}}">{{label}}</text>
+      </g>
+      {{/each}}
+      <circle class="mm-puck" cx="{{puckX}}" cy="{{puckY}}" r="11"></circle>
+    </svg>
+    <div class="mm-auto vertical">
+      <button type="button" data-auto class="{{#if auto}}active{{/if}}" data-tooltip="Auto-stroll — rotate the mix automatically"><i class="fa-solid {{#if auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
+      <label data-tooltip="Rotation speed"><i class="fa-solid fa-rotate"></i><input type="range" name="auto-rate" min="2" max="60" step="1" value="{{autoRate}}"></label>
+      <label data-tooltip="Sway amount"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-amp" min="0" max="0.5" step="0.02" value="{{autoAmp}}"></label>
+      <label data-tooltip="Sway speed"><i class="fa-solid fa-wave-square"></i><input type="range" name="auto-freq" min="0.01" max="0.3" step="0.01" value="{{autoFreq}}"></label>
+    </div>
   </div>
-  <div class="mm-hint">Centre = full mix · edge = solo · click a node to mute · drag it to re-order · ▶ auto-strolls</div>
+  <div class="mm-hint">Centre = full mix · edge = solo · hover a node for its name · click = mute · drag = re-order · ▶ auto-strolls</div>
 {{/if}}
 </div>

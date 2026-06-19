@@ -65,6 +65,23 @@ function percussiveness(buf) {
   return Math.max(0, Math.min(1, (onsets / (buf.duration || 1)) / 8));
 }
 
+/** Polygon points for the live intensity graph: each track's vertex at radius ∝ its factor. */
+function graphPoints(tracks, factors) {
+  const { CX, CY, R } = GEOM;
+  return (tracks || []).map(t => {
+    const f = Math.max(0, Math.min(1, factors ? (factors[t.id] ?? 1) : 1));
+    return `${(CX + R * f * Math.cos(t.angle)).toFixed(1)},${(CY + R * f * Math.sin(t.angle)).toFixed(1)}`;
+  }).join(" ");
+}
+
+/** Redraw every visible intensity graph from a channel's current live mix. */
+function refreshGraph(channel) {
+  const info = MaestroMixer.tracksFor(channel);
+  if (!info) return;
+  const pts = graphPoints(info.tracks, Maestro.sound?.containers?.[channel]?._mix?.factors);
+  for (const poly of document.querySelectorAll(".mm-graph")) poly.setAttribute("points", pts);
+}
+
 /** Set a single live layer's volume to base*factor (muted → 0), with a short fade. */
 function applyLayer(layer, factor) {
   const v = factor <= 0 ? 0 : (Number.isFinite(layer.volume) ? layer.volume : 1) * factor;
@@ -127,13 +144,14 @@ export const MaestroMixer = {
       const c = Math.cos(t.angle);
       return {
         id: t.id, label: prettify(t.id), icon: trackIcon(t.id), muted: t.muted,
-        x: +x.toFixed(1), y: +y.toFixed(1), ix: +(x - 11).toFixed(1), iy: +(y - 11).toFixed(1),
+        x: +x.toFixed(1), y: +y.toFixed(1), ix: +(x - 13).toFixed(1), iy: +(y - 13).toFixed(1),
         lx: +lx.toFixed(1), ly: +(ly + 3).toFixed(1), anchor: c < -0.3 ? "end" : (c > 0.3 ? "start" : "middle")
       };
     });
     const num = (key, dflt) => { const v = Number(game.settings.get(MODULE_ID, key)); return Number.isFinite(v) ? v : dflt; };
     return {
       name: ambienceMeta(info.arrangementId).name, tracks, puckX: CX, puckY: CY,
+      points: graphPoints(info.tracks, Maestro.sound?.containers?.[channel]?._mix?.factors),
       auto: !!_autoTimer, autoRate: num("autoRate", 12), autoAmp: num("autoAmp", 0.4), autoFreq: num("autoFreq", 0.06)
     };
   },
@@ -231,6 +249,7 @@ export const MaestroMixer = {
     if (!orch) return;
     orch._mix = factors ? { theme: themeKey, factors } : null;
     for (const layer of orch.layers) applyLayer(layer, factors ? (factors[layer.id] ?? 1) : 1);
+    if (channel === "environment") refreshGraph(channel);   // live intensity graph
   },
 
   /** GM drag: compute factors for a puck position, apply locally, return them. */
