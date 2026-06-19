@@ -152,12 +152,15 @@
     <div class="maestro-scroll preset-list">
       {{#each presets}}
       <div class="preset-group">
-        <button type="button" class="preset-fire" data-preset="{{tag}}" data-tooltip="Play this scene — one of each category"><i class="fa-solid fa-bolt"></i> <span class="nm">{{tag}}</span> <span class="cnt">{{count}}</span></button>
+        <div class="preset-label"><i class="fa-solid fa-bolt"></i> <span class="nm">{{tag}}</span> <span class="cnt">{{count}}</span></div>
         {{#each cats}}
         <div class="preset-cat"><i class="{{icon}}"></i> {{label}}</div>
-        <div class="preset-members">
+        <div class="preset-members layout-grid">
           {{#each items}}
-          <button type="button" class="preset-member" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-tooltip="Play just this"><i class="{{icon}}"></i> {{name}}</button>
+          <div class="maestro-item" role="button" tabindex="0" draggable="true" data-preset-member data-tag="{{tag}}" data-key="{{key}}" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-cat="{{cat}}" data-name="{{name}}">
+            <i class="{{icon}}"></i><span class="nm">{{name}}</span>
+            <button type="button" class="maestro-rename" data-preset-rename data-tooltip="Rename in this preset"><i class="fa-solid fa-pen"></i></button>
+          </div>
           {{/each}}
         </div>
         {{/each}}

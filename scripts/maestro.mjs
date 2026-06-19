@@ -487,6 +487,33 @@ globalThis.Maestro = {
     for (const id of Object.keys(arr?.layers || {})) factors[id] = v.enabled.includes(id) ? 1 : 0;
     MaestroMixer.setMix("music", `${soundscapeId}:${v.base}`, factors);   // reapply tick lands it once layers come up
     MaestroMixer.broadcast("music");
+  },
+
+  /* ----- Preset-specific member order + aliases ----- */
+
+  /** Per-preset metadata: { order:[memberKey], aliases:{memberKey:name} }. */
+  presetMeta(tag) {
+    const m = (game.settings.get(MODULE_ID, "presetMeta") || {})[tag];
+    return { order: Array.isArray(m?.order) ? m.order : [], aliases: m?.aliases || {} };
+  },
+
+  /** Set a preset-specific display alias for a member (blank clears). */
+  async setPresetAlias(tag, memberKey, name) {
+    if (!game.user.isGM) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "presetMeta") || {});
+    const entry = (map[tag] ??= { order: [], aliases: {} });
+    const v = String(name || "").trim();
+    if (v) entry.aliases[memberKey] = v; else delete entry.aliases[memberKey];
+    return game.settings.set(MODULE_ID, "presetMeta", map);
+  },
+
+  /** Set the member order within a preset. */
+  async setPresetOrder(tag, order) {
+    if (!game.user.isGM) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "presetMeta") || {});
+    const entry = (map[tag] ??= { order: [], aliases: {} });
+    entry.order = [...order];
+    return game.settings.set(MODULE_ID, "presetMeta", map);
   }
 };
 
@@ -570,6 +597,8 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "sbAliases", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
   // Custom music variations ({ soundscapeId: [{ id, name, base, enabled:[trackIds] }] }).
   game.settings.register(MODULE_ID, "musicVariations", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
+  // Per-preset member order + aliases ({ tag: { order:[key], aliases:{key:name} } }).
+  game.settings.register(MODULE_ID, "presetMeta", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
 
   // Auto-pick (and switch) day/night arrangement variants from the calendar.
   game.settings.register(MODULE_ID, "autoDayNight", {

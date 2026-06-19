@@ -206,13 +206,14 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       items: favByCat[k].sort((a, b) => favIdx(a) - favIdx(b) || String(a.icon).localeCompare(String(b.icon)) || a.name.localeCompare(b.name))
     }));
 
-    // Presets — each tag is a group; members shown as sub-elements per category.
+    // Presets — each tag is a group; members shown as square tiles per category,
+    // with a per-preset display alias and manual order.
     const tagMap = game.settings.get(MODULE_ID, "tags") || {};
     const resolveMember = (kind, fid) => {
-      if (kind === "music" && soundscapes[fid]) { const m = musicMeta(fid); return { kind, id: fid, name: this.#cn("music", fid) || m.name, icon: this.#icon("music", fid, m.icon), cat: m.cat }; }
-      if (kind === "amb") { const canon = baseToCanonical[fid] || (envArrs[`${fid}Day`] ? `${fid}Day` : (envArrs[`${fid}Night`] ? `${fid}Night` : fid)); const m = ambienceMeta(canon); return { kind, id: canon, name: this.#cn("amb", fid) || m.name, icon: this.#icon("amb", fid, m.icon), cat: m.cat }; }
-      if (kind === "weather") return { kind, id: fid, name: this.#cn("weather", fid) || WEATHER[fid] || prettify(fid), icon: this.#icon("weather", fid, "fa-solid fa-cloud"), cat: "weather" };
-      if (kind === "sfx") return { kind, src: fid, name: Maestro.sbAlias?.(fid) || prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "")), icon: "fa-solid fa-volume-high", cat: "sfx" };
+      if (kind === "music" && soundscapes[fid]) { const m = musicMeta(fid); return { kind, id: fid, baseName: this.#cn("music", fid) || m.name, icon: this.#icon("music", fid, m.icon), cat: m.cat }; }
+      if (kind === "amb") { const canon = baseToCanonical[fid] || (envArrs[`${fid}Day`] ? `${fid}Day` : (envArrs[`${fid}Night`] ? `${fid}Night` : fid)); const m = ambienceMeta(canon); return { kind, id: canon, baseName: this.#cn("amb", fid) || m.name, icon: this.#icon("amb", fid, m.icon), cat: m.cat }; }
+      if (kind === "weather") return { kind, id: fid, baseName: this.#cn("weather", fid) || WEATHER[fid] || prettify(fid), icon: this.#icon("weather", fid, "fa-solid fa-cloud"), cat: "weather" };
+      if (kind === "sfx") return { kind, src: fid, baseName: Maestro.sbAlias?.(fid) || prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "")), icon: "fa-solid fa-volume-high", cat: "sfx" };
       return null;
     };
     const byTag = {};
@@ -221,13 +222,16 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const ci = key.indexOf(":");
       const m = resolveMember(key.slice(0, ci), key.slice(ci + 1));
       if (!m) continue;
+      m.key = key;
       for (const tag of arr) (byTag[tag] ??= []).push(m);
     }
     const presets = Object.keys(byTag).sort((a, b) => a.localeCompare(b)).map(tag => {
-      const members = byTag[tag];
+      const meta = Maestro.presetMeta?.(tag) ?? { order: [], aliases: {} };
+      const ord = k => { const i = meta.order.indexOf(k); return i < 0 ? 1e6 : i; };
+      const members = byTag[tag].map(m => ({ ...m, tag, name: meta.aliases[m.key] || m.baseName }));
       const cats = Object.keys(CATEGORIES).filter(k => members.some(m => m.cat === k)).map(k => ({
         cat: k, label: CATEGORIES[k].label, icon: CATEGORIES[k].icon,
-        items: members.filter(m => m.cat === k).sort((a, b) => a.name.localeCompare(b.name))
+        items: members.filter(m => m.cat === k).sort((a, b) => ord(a.key) - ord(b.key) || a.name.localeCompare(b.name))
       }));
       return { tag, count: members.length, cats };
     });
@@ -351,13 +355,29 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     on('[data-sb-refresh]', "click", () => { this.#sbCache.clear(); this.render(); });
     on('[data-sb-home]', "click", () => { this.#sbPath = null; this.render(); });
 
-    // Presets — group header fires the scene (one per category); a member plays just itself.
-    onAll('[data-preset]', "click", e => Maestro.triggerPreset(e.currentTarget.dataset.preset));
-    onAll('.preset-member', "click", e => {
+    // Presets — a member plays just itself (click playing = stop, like the zones).
+    onAll('[data-preset-member]', "click", e => {
       const { kind, id, src } = e.currentTarget.dataset;
       if (kind === "sfx") Maestro.playOneShot(src);
       else { this.#toggleCue(kind, id); this.render(); }
     });
+    // Preset member: rename (alias scoped to this preset).
+    onAll('[data-preset-rename]', "click", async e => {
+      e.stopPropagation();
+      const item = e.currentTarget.closest(".maestro-item");
+      if (item) await this.#promptPresetAlias(item.dataset.tag, item.dataset.key, item.dataset.name);
+    });
+    // Preset member: drag to reorder within the same preset.
+    const presetZone = el.querySelector('.maestro-zone[data-zone="preset"]');
+    if (presetZone) {
+      let dk = null, dtag = null;
+      presetZone.querySelectorAll('.maestro-item[draggable="true"]').forEach(it => {
+        it.addEventListener("dragstart", e2 => { dk = it.dataset.key; dtag = it.dataset.tag; it.classList.add("dragging"); try { e2.dataTransfer.effectAllowed = "move"; e2.dataTransfer.setData("text/plain", dk || ""); } catch (_e) { /* ignore */ } });
+        it.addEventListener("dragend", () => { dk = null; dtag = null; it.classList.remove("dragging"); });
+        it.addEventListener("dragover", e2 => e2.preventDefault());
+        it.addEventListener("drop", e2 => { e2.preventDefault(); const tk = it.dataset.key, tt = it.dataset.tag; if (dk && tk && dtag === tt && dk !== tk) this.#reorderPresetMember(dtag, dk, tk); });
+      });
+    }
 
     // Rename pencil — blank reverts to the built-in name.
     onAll('[data-rename]', "click", async e => {
@@ -385,7 +405,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     });
 
     // Item clicks (the row is the button; the pencil stops propagation).
-    onAll(".maestro-item", "click", e => {
+    onAll('.maestro-zone:not([data-zone="preset"]) .maestro-item', "click", e => {
       const { kind, id, src, path } = e.currentTarget.dataset;
       if (kind === "music" || kind === "amb" || kind === "weather") this.#toggleCue(kind, id);  // click playing = stop, click other = switch
       else if (kind === "sbdir") { this.#sbPath = path; this.render(); return; }      // into a sub-folder
@@ -533,5 +553,39 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     }).catch(() => null);
     if (!res || !String(res.name || "").trim()) return;
     await Maestro.saveMusicVariation(cfg.soundscapeId, cfg.arrangementId, res.name, res.enabled);
+  }
+
+  /** Rename a member within a preset (alias scoped to that preset only). */
+  async #promptPresetAlias(tag, key, current) {
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    const esc = s => String(s ?? "").replace(/"/g, "&quot;");
+    let next = null;
+    if (DialogV2?.prompt) {
+      next = await DialogV2.prompt({
+        window: { title: `Rename in “${tag}”`, icon: "fa-solid fa-pen" },
+        content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Name shown for this sound inside the “${esc(tag)}” preset only. Blank restores its normal name.</p>`
+               + `<input type="text" name="al" value="${esc(current)}" style="width:100%">`,
+        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => btn.form.elements.al.value },
+        rejectClose: false
+      }).catch(() => null);
+    } else {
+      next = window.prompt("Name in this preset (blank = normal):", current ?? "");
+    }
+    if (next === null || next === undefined) return;
+    await Maestro.setPresetAlias(tag, key, next);
+  }
+
+  /** Reorder a member within a preset by moving it before `targetKey`. */
+  async #reorderPresetMember(tag, dragKey, targetKey) {
+    const tagMap = game.settings.get(MODULE_ID, "tags") || {};
+    const keys = Object.keys(tagMap).filter(k => Array.isArray(tagMap[k]) && tagMap[k].includes(tag));
+    let order = (Maestro.presetMeta?.(tag).order || []).filter(k => keys.includes(k));
+    for (const k of keys) if (!order.includes(k)) order.push(k);
+    const from = order.indexOf(dragKey);
+    if (from < 0) return;
+    order.splice(from, 1);
+    const ti = order.indexOf(targetKey);
+    order.splice(ti < 0 ? order.length : ti, 0, dragKey);
+    await Maestro.setPresetOrder(tag, order);
   }
 }
