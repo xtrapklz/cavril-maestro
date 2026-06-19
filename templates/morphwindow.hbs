@@ -1,0 +1,20 @@
+<div class="maestro-morph-body">
+{{#if empty}}
+  <div class="maestro-warn"><i class="fa-solid fa-circle-info"></i> Start an ambience first, then open the mixer to blend its tracks.</div>
+{{else}}
+  <div class="mm-title"><i class="fa-solid fa-wind"></i> {{name}}<button type="button" data-reset data-tooltip="Reset to full mix"><i class="fa-solid fa-rotate-left"></i></button></div>
+  <svg class="mm-svg" viewBox="0 0 300 300">
+    <circle class="mm-ring" cx="150" cy="150" r="116"></circle>
+    <circle class="mm-hub" cx="150" cy="150" r="3"></circle>
+    {{#each tracks}}
+    <g class="mm-anchor {{#if muted}}muted{{/if}}" data-id="{{id}}" data-x="{{x}}" data-y="{{y}}">
+      <circle class="mm-node" cx="{{x}}" cy="{{y}}" r="15"></circle>
+      <foreignObject class="mm-ico" x="{{ix}}" y="{{iy}}" width="22" height="22"><div xmlns="http://www.w3.org/1999/xhtml"><i class="{{icon}}"></i></div></foreignObject>
+      <text class="mm-label" x="{{lx}}" y="{{ly}}" text-anchor="{{anchor}}">{{label}}</text>
+    </g>
+    {{/each}}
+    <circle class="mm-puck" cx="{{puckX}}" cy="{{puckY}}" r="11"></circle>
+  </svg>
+  <div class="mm-hint">Centre = full mix · edge = solo · click a node to mute · drag it to re-order</div>
+{{/if}}
+</div>

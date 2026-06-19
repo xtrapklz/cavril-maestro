@@ -21,6 +21,7 @@ import { soundscapes } from "./soundscapes.mjs";
 import { MaestroDirector } from "./director.mjs";
 import { MaestroCombat } from "./combat.mjs";
 import { MaestroMixer, SOCKET } from "./mixer.mjs";
+import { MaestroMorphWindow } from "./morphwindow.mjs";
 import { dayNightVariant, prettify } from "./meta.mjs";
 
 const MODULE_ID = "cavril-maestro";
@@ -228,6 +229,9 @@ globalThis.Maestro = {
 
   /** Open the GM Director panel. */
   openDirector() { return MaestroDirector.open(); },
+
+  /** Open the pop-out Ambience Morpher (per-track mixer). */
+  openMorph() { return MaestroMorphWindow.open(); },
 
   /* ----- Soundboard (one-shot SFX from a configurable folder) ----- */
 
@@ -463,6 +467,7 @@ Hooks.once("init", () => {
     onChange: data => {
       Maestro.sound?.onChange(data ?? {});
       MaestroDirector.refresh();
+      MaestroMorphWindow.refresh();
     }
   });
 

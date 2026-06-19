@@ -83,16 +83,26 @@
 .maestro-director .var-btn.active { background: var(--color-shadow-primary, #ff6400); color: #fff; opacity: 1; border-color: var(--color-shadow-primary, #ff6400); }
 .maestro-director .var-btn.icon { width: 30px; padding: 0; flex: 0 0 auto; }
 
-/* Embedded per-track morpher (mini radial mixer) */
-.maestro-director .mini-morph { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 0 3px; }
-.maestro-director .mm-svg { width: 166px; height: 166px; max-width: 100%; touch-action: none; user-select: none; display: block; }
-.maestro-director .mm-ring { fill: rgba(0,0,0,.18); stroke: var(--color-border-light-tertiary, #4b4a44); stroke-width: 1.5; }
-.maestro-director .mm-hub { fill: rgba(255,255,255,.25); }
-.maestro-director .mm-anchor { fill: #6b7280; stroke: rgba(0,0,0,.45); stroke-width: 1; cursor: pointer; transition: fill .12s; }
-.maestro-director .mm-anchor:hover { fill: #9aa0ad; }
-.maestro-director .mm-anchor.muted { fill: transparent; stroke: #7a8194; stroke-dasharray: 2 2; }
-.maestro-director .mm-puck { fill: var(--color-shadow-primary, #ff6400); stroke: #fff; stroke-width: 2; cursor: grab; filter: drop-shadow(0 0 4px rgba(0,0,0,.5)); }
-.maestro-director .mm-hint { font-size: 9px; opacity: .5; text-align: center; }
+/* ---- Ambience Morpher (pop-out window) ---- */
+.maestro-morph .window-content { padding: 0; }
+.maestro-morph-body { display: flex; flex-direction: column; padding: 8px; gap: 4px; }
+.maestro-morph .mm-title { font-size: 13px; font-weight: 700; opacity: .9; display: flex; align-items: center; gap: 6px; padding: 2px; }
+.maestro-morph .mm-title button { margin-left: auto; width: 26px; height: 24px; flex: 0 0 auto; }
+.maestro-morph .mm-svg { width: 100%; height: auto; touch-action: none; user-select: none; display: block; overflow: visible; }
+.maestro-morph .mm-ring { fill: rgba(0,0,0,.18); stroke: var(--color-border-light-tertiary, #4b4a44); stroke-width: 1.5; }
+.maestro-morph .mm-hub { fill: rgba(255,255,255,.25); }
+.maestro-morph .mm-anchor { cursor: pointer; }
+.maestro-morph .mm-node { fill: #4a5160; stroke: rgba(0,0,0,.45); stroke-width: 1.5; transition: fill .12s; }
+.maestro-morph .mm-anchor:hover .mm-node { fill: #5d6678; }
+.maestro-morph .mm-anchor.muted .mm-node { fill: transparent; stroke: #7a8194; stroke-dasharray: 3 2; }
+.maestro-morph .mm-ico { pointer-events: none; }
+.maestro-morph .mm-ico div { display: flex; align-items: center; justify-content: center; height: 22px; color: #e8e8ea; font-size: 12px; }
+.maestro-morph .mm-anchor.muted .mm-ico div { opacity: .4; }
+.maestro-morph .mm-label { fill: #d4d9e6; font-size: 9px; paint-order: stroke; stroke: rgba(0,0,0,.7); stroke-width: 2.5px; pointer-events: none; }
+.maestro-morph .mm-anchor.muted .mm-label { opacity: .5; }
+.maestro-morph .mm-puck { fill: var(--color-shadow-primary, #ff6400); stroke: #fff; stroke-width: 2; cursor: grab; filter: drop-shadow(0 0 4px rgba(0,0,0,.5)); }
+.maestro-morph .mm-hint { font-size: 10px; opacity: .5; text-align: center; }
+.maestro-morph .maestro-warn { background: #5a1d1d; color: #ffe9e9; padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
 
 /* Wildcard soundboard tile badge (random-variation count) */
 .maestro-director .layout-grid .maestro-item.sb-wild { border-style: dashed; }

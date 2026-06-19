@@ -211,6 +211,35 @@ export function ambienceMeta(id = "") {
   return { name: prettify(base), cat: ambienceCategory(base), icon: ambienceIcon(base), base };
 }
 
+/* ---- Per-track (stem) icons — keyword heuristic for the ambience mixer ---- */
+const TRACK_ICON_RULES = [
+  [/ocean|wave|tide|sea|surf|water|river|drip|bubble|slosh|gutter|pool|waterfall|rain|wet/i, "fa-solid fa-water"],
+  [/fire|campfire|bonfire|ember|flame|torch|forge/i, "fa-solid fa-fire"],
+  [/owl|gull|crow|eagle|vulture|raven|sparrow|bird|wing/i, "fa-solid fa-dove"],
+  [/wind|breeze|gust|howl|gale|whistl/i, "fa-solid fa-wind"],
+  [/bell|chime|gong/i, "fa-solid fa-bell"],
+  [/voice|crowd|walla|murmur|children|party|festival|chatter|cheer|talk/i, "fa-solid fa-people-group"],
+  [/drum|timpani|perc|impact|taiko|tom\b|hit\b/i, "fa-solid fa-drum"],
+  [/cricket|mosquito|bug|insect|frog|cicada/i, "fa-solid fa-bug"],
+  [/cello|violin|viola|pluck|harp|gittern|guitar|lute|string/i, "fa-solid fa-guitar"],
+  [/horn|trumpet|brass|tuba|trombone/i, "fa-solid fa-bullhorn"],
+  [/flute|woodwind|clarinet|oboe|pipe|melody|ostinato/i, "fa-solid fa-music"],
+  [/choir|vocal|chant|sing|\bhum\b/i, "fa-solid fa-microphone"],
+  [/mining|pickaxe|cart|metal|scrape|machine|factory|clockwork|steam|gear|chain/i, "fa-solid fa-gears"],
+  [/rock|stone|cave|cavern|boulder|quarry|earth|tremor|quake|fall/i, "fa-solid fa-mountain"],
+  [/foley|footstep|movement|walk|cloth|wood|creak|door|flag/i, "fa-solid fa-shoe-prints"],
+  [/ghost|aura|whisper|horror|spectral|haunt|eerie|reverse/i, "fa-solid fa-ghost"],
+  [/crystal|shimmer|magic|arcane|spell|glow|sparkle/i, "fa-solid fa-wand-sparkles"],
+  [/leaf|leaves|grass|tree|forest|jungle|rustle|branch|rainforest/i, "fa-solid fa-leaf"],
+  [/drone|pad|ambient|tone|swell|atmos|rumble|\blow|pulse|deep/i, "fa-solid fa-wave-square"]
+];
+
+/** Best-guess Font Awesome icon for a single track/stem id (mixer nodes). */
+export function trackIcon(id = "") {
+  for (const [re, ic] of TRACK_ICON_RULES) if (re.test(id)) return ic;
+  return "fa-solid fa-volume-high";
+}
+
 /** Display info for a music soundscape id. */
 export function musicMeta(id = "") {
   return MUSIC[id] ?? { name: prettify(id), cat: "theme", icon: CATEGORIES.theme.icon };
