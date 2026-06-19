@@ -40,6 +40,12 @@ globalThis.Maestro = {
   _pathsResolved: false,
   /** @type {Set<foundry.audio.Sound>} live soundboard one-shots (for Stop all) */
   _oneShots: new Set(),
+  /** @type {null|foundry.audio.Sound} the looping indoor room-tone bed (interior mode) */
+  _interiorBed: null,
+  _interiorBedWant: false,
+  /** @type {Record<string,string[]>} per-wildcard shuffle bags (no repeats until a cycle completes) */
+  _wildBag: {},
+  _wildLast: {},
   /** @type {null|{soundscapeId:string,vid:string}} the custom music variation currently selected (UI highlight) */
   activeVariation: null,
 
@@ -383,26 +389,56 @@ globalThis.Maestro = {
   },
 
   /**
-   * Interior perspective: route the WEATHER channel through a low-pass filter so
-   * the same weather sounds muffled (as if heard from inside). `freq` is the
-   * cutoff in Hz (lower = more muffled). Off = bypass.
+   * Interior perspective: route the WEATHER and AMBIENCE (environment) channels
+   * through a low-pass filter so the outdoors sounds muffled, as if heard from
+   * inside. `freq` is the cutoff in Hz (lower = more muffled). Off = bypass.
+   * Idempotent — safe to re-call after a channel re-plays (re-wires only if needed).
+   * The looping room-tone bed is driven separately via setInteriorBed().
    */
   setInteriorFilter(on, freq) {
-    const orch = this.sound?.containers?.weather;
-    const g = orch?.gainNode;
-    const ctx = orch?.context ?? g?.context;
-    if (!g || !ctx) return;
-    const dest = orch.destination ?? ctx.destination;
-    try {
-      if (on) {
-        orch._lpf ||= ctx.createBiquadFilter();
-        orch._lpf.type = "lowpass";
-        orch._lpf.frequency.value = Math.max(120, Math.min(20000, Number(freq) || 800));
-        if (!orch._lpfWired) { g.disconnect(); g.connect(orch._lpf); orch._lpf.connect(dest); orch._lpfWired = true; }
-      } else if (orch._lpfWired) {
-        g.disconnect(); orch._lpf?.disconnect(); g.connect(dest); orch._lpfWired = false;
-      }
-    } catch (e) { console.warn(`${MODULE_ID} | interior filter skipped:`, e); }
+    for (const channel of ["weather", "environment"]) {
+      const orch = this.sound?.containers?.[channel];
+      const g = orch?.gainNode;
+      const ctx = orch?.context ?? g?.context;
+      if (!g || !ctx) continue;
+      const dest = orch.destination ?? ctx.destination;
+      try {
+        if (on) {
+          orch._lpf ||= ctx.createBiquadFilter();
+          orch._lpf.type = "lowpass";
+          orch._lpf.frequency.value = Math.max(120, Math.min(20000, Number(freq) || 800));
+          if (!orch._lpfWired) { g.disconnect(); g.connect(orch._lpf); orch._lpf.connect(dest); orch._lpfWired = true; }
+        } else if (orch._lpfWired) {
+          g.disconnect(); orch._lpf?.disconnect(); g.connect(dest); orch._lpfWired = false;
+        }
+      } catch (e) { console.warn(`${MODULE_ID} | interior filter (${channel}) skipped:`, e); }
+    }
+  },
+
+  /**
+   * Indoor room-tone bed: while interior mode is on, loop the environment
+   * room-tone asset under everything (a subtle "you're inside a room" hum).
+   * Plays locally on every client (the interiorOn world setting fires this on all).
+   */
+  async setInteriorBed(on) {
+    this._interiorBedWant = !!on;
+    if (on) {
+      if (this._interiorBed) return;
+      const env = this.soundscapes?.emberEnvironment;
+      const seg = env?.segments?.roomTone;
+      if (!seg?.src) return;
+      const src = [env.src, seg.src].filter(Boolean).join("/").replace(/([^:]\/)\/+/g, "$1");
+      const vol = Math.min(0.6, (Number(this.sound?.channels?.environment?.volume) || 0.7) * 0.6);
+      let snd = null;
+      try { snd = await foundry.audio.AudioHelper.play({ src, volume: vol, loop: true, autoplay: true }, false); }
+      catch (e) { console.warn(`${MODULE_ID} | room-tone bed failed:`, e); }
+      if (!this._interiorBedWant) { try { snd?.stop?.(); } catch (_e) { /* ignore */ } return; }   // toggled off mid-load
+      this._interiorBed = snd || null;
+    } else if (this._interiorBed) {
+      const snd = this._interiorBed; this._interiorBed = null;
+      const ms = Math.min(1200, Math.max(200, (Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8) * 1000));
+      try { snd.stop?.({ volume: 0, fade: ms }); } catch (_e) { try { snd.stop?.(); } catch (_e2) { /* ignore */ } }
+    }
   },
 
   /* ----- Custom display names (GM-authored, world-shared) ----- */
@@ -540,6 +576,26 @@ globalThis.Maestro = {
     return game.settings.set(MODULE_ID, "folderWild", map);
   },
 
+  /**
+   * Pick a random source from `srcs` and play it WITHOUT repeating any one until the
+   * whole set has played (a shuffle-bag per `key`). Avoids the same audio twice in a row.
+   */
+  playRandomOneShot(key, srcs) {
+    const pool = [...new Set((srcs || []).filter(Boolean))];
+    if (!pool.length) return;
+    if (pool.length === 1) return this.playOneShot(pool[0]);
+    let bag = (this._wildBag[key] || []).filter(s => pool.includes(s));
+    if (!bag.length) {                                   // exhausted → refill + reshuffle
+      bag = [...pool];
+      for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+      if (bag[bag.length - 1] === this._wildLast[key]) [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];   // don't repeat across cycles
+    }
+    const pick = bag.pop();
+    this._wildBag[key] = bag;
+    this._wildLast[key] = pick;
+    return this.playOneShot(pick);
+  },
+
   /** Play a random audio file from a folder (wildcard click); looks one level into sub-folders if empty. */
   async playRandomInFolder(path) {
     if (!path) return;
@@ -547,7 +603,7 @@ globalThis.Maestro = {
     const files = (top.files || []).slice();
     if (!files.length) for (const d of (top.dirs || [])) { const sub = await this.browseSoundboard(d.path); files.push(...(sub.files || [])); }
     if (!files.length) return ui.notifications?.warn("Maestro: no sounds in that folder.");
-    this.playOneShot(files[Math.floor(Math.random() * files.length)].src);
+    this.playRandomOneShot(path, files.map(f => f.src));
   },
 
   /* ----- Custom music variations (saved track subsets within a theme) ----- */
@@ -649,6 +705,8 @@ Hooks.once("init", () => {
     default: {},
     onChange: data => {
       Maestro.sound?.onChange(data ?? {});
+      // A freshly (re)played channel gets a new gain node — re-wire the interior LPF onto it.
+      try { if (game.settings.get(MODULE_ID, "interiorOn")) Maestro.setInteriorFilter(true, game.settings.get(MODULE_ID, "interiorFreq")); } catch (_e) { /* ignore */ }
       MaestroDirector.refresh();
       MaestroMorphWindow.refresh();
     }
@@ -689,10 +747,11 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "autoSpeed", { scope: "client", config: false, type: Number, default: 6 });
   game.settings.register(MODULE_ID, "autoIntensity", { scope: "client", config: false, type: Number, default: 0.35 });
 
-  // Interior perspective: low-pass the weather channel (world-shared so all hear it).
+  // Interior perspective: low-pass the weather + ambience channels and loop a room-tone
+  // bed (world-shared so all hear it).
   game.settings.register(MODULE_ID, "interiorOn", {
     scope: "world", config: false, type: Boolean, default: false,
-    onChange: v => { try { Maestro.setInteriorFilter(v, game.settings.get(MODULE_ID, "interiorFreq")); } catch (_e) {} MaestroDirector.refresh(); }
+    onChange: v => { try { Maestro.setInteriorFilter(v, game.settings.get(MODULE_ID, "interiorFreq")); Maestro.setInteriorBed(v); } catch (_e) {} MaestroDirector.refresh(); }
   });
   game.settings.register(MODULE_ID, "interiorFreq", {
     scope: "world", config: false, type: Number, default: 900,
@@ -926,8 +985,8 @@ Hooks.once("ready", async () => {
     // Follow the calendar's current weather (if Mini Calendar is present).
     try { Maestro.syncWeatherFromCalendar(); } catch (e) { console.warn(`${MODULE_ID} | initial weather sync skipped:`, e); }
 
-    // Restore the interior-perspective filter if it was left on.
-    try { if (game.settings.get(MODULE_ID, "interiorOn")) Maestro.setInteriorFilter(true, game.settings.get(MODULE_ID, "interiorFreq")); } catch (_e) { /* ignore */ }
+    // Restore the interior-perspective filter + room-tone bed if it was left on.
+    try { if (game.settings.get(MODULE_ID, "interiorOn")) { Maestro.setInteriorFilter(true, game.settings.get(MODULE_ID, "interiorFreq")); Maestro.setInteriorBed(true); } } catch (_e) { /* ignore */ }
 
     // Per-track morpher: apply mixes pushed by the GM, and keep the mix alive
     // across generative re-rolls with a light re-apply tick.

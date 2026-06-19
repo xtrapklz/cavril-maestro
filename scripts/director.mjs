@@ -503,9 +503,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
         if (Maestro.isFolderWild?.(path)) { Maestro.playRandomInFolder(path); return; }
         this.#sbPath = path; this.render(); return;
       }
-      else if (kind === "sfx") {                                                       // play (random variation if wildcard), then back to main board
+      else if (kind === "sfx") {                                                       // play (random NON-repeating variation if wildcard), then back to main board
         const list = (e.currentTarget.dataset.srcs || "").split("|").filter(Boolean);
-        Maestro.playOneShot(list.length ? list[Math.floor(Math.random() * list.length)] : src);
+        Maestro.playRandomOneShot(e.currentTarget.dataset.id || src, list.length ? list : [src]);
         this.#sbPath = null; this.render(); return;
       }
       this.render();
@@ -612,7 +612,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
                + `<input type="text" name="nm" value="${esc(current)}" placeholder="${esc(base ?? id)}" style="width:100%;margin-bottom:.55rem">`
                + `<p style="margin:.25rem 0 .4rem;opacity:.75">Tags (comma-separated) — searchable, and each tag becomes a Preset.</p>`
                + `<input type="text" name="tg" value="${esc(currentTags)}" placeholder="combat, night, docks" style="width:100%;margin-bottom:.55rem">`
-               + `<p style="margin:.25rem 0 .4rem;opacity:.75">Icon — a Font Awesome class (blank = default). <a href="https://fontawesome.com/search?o=r&m=free" target="_blank">browse free icons</a></p>`
+               + `<p style="margin:.25rem 0 .4rem;opacity:.75">Icon — a Font Awesome class (blank = default). <a href="https://fontawesome.com/search?o=r&m=free&s=solid" target="_blank" rel="noopener">browse icons ↗</a> (click one → copy its <code>fa-solid fa-…</code> name)</p>`
                + `<input type="text" name="ic" value="${esc(currentIcon)}" placeholder="fa-solid fa-dragon" style="width:100%">`,
         ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, tags: btn.form.elements.tg.value, icon: btn.form.elements.ic.value }) },
         rejectClose: false
@@ -636,7 +636,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       window: { title: `Folder — ${base || ""}`, icon: "fa-solid fa-folder" },
       content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Display name (blank = original folder name).</p>`
              + `<input type="text" name="nm" value="${esc(current)}" placeholder="${esc(base)}" style="width:100%;margin-bottom:.5rem">`
-             + `<p style="margin:.25rem 0 .4rem;opacity:.75">Icon — Font Awesome class (blank = folder).</p>`
+             + `<p style="margin:.25rem 0 .4rem;opacity:.75">Icon — Font Awesome class (blank = folder). <a href="https://fontawesome.com/search?o=r&m=free&s=solid" target="_blank" rel="noopener">browse icons ↗</a> (click one → copy its <code>fa-solid fa-…</code> name)</p>`
              + `<input type="text" name="ic" value="${esc(icon)}" placeholder="fa-solid fa-folder" style="width:100%;margin-bottom:.6rem">`
              + `<label style="display:flex;gap:7px;align-items:center;font-size:12px"><input type="checkbox" name="wild" ${wild ? "checked" : ""}> Wildcard — click plays a random sound inside (instead of opening it)</label>`,
       ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, icon: btn.form.elements.ic.value, wild: btn.form.elements.wild.checked }) },
