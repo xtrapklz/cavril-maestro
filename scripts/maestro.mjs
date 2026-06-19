@@ -599,6 +599,10 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "favOrder", { scope: "client", config: false, type: Array, default: [], onChange: () => MaestroDirector.refresh() });
   // Inline ambience morpher minimized inside the Director (per user).
   game.settings.register(MODULE_ID, "morphCollapsed", { scope: "client", config: false, type: Boolean, default: true });
+  // Auto-stroll params (morpher): rotation deg/sec, radius sine amplitude, frequency Hz.
+  game.settings.register(MODULE_ID, "autoRate", { scope: "client", config: false, type: Number, default: 12 });
+  game.settings.register(MODULE_ID, "autoAmp", { scope: "client", config: false, type: Number, default: 0.4 });
+  game.settings.register(MODULE_ID, "autoFreq", { scope: "client", config: false, type: Number, default: 0.06 });
 
   // Soundboard one-shot volume (used by playOneShot).
   game.settings.register(MODULE_ID, "sfxVolume", {

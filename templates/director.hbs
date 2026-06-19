@@ -85,6 +85,12 @@
         {{/each}}
         <circle class="mm-puck" cx="{{ambMorph.puckX}}" cy="{{ambMorph.puckY}}" r="11"></circle>
       </svg>
+      <div class="mm-auto">
+        <button type="button" data-auto class="{{#if ambMorph.auto}}active{{/if}}" data-tooltip="Auto-stroll — rotate the mix automatically"><i class="fa-solid {{#if ambMorph.auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
+        <label data-tooltip="Rotation speed"><i class="fa-solid fa-rotate"></i><input type="range" name="auto-rate" min="2" max="60" step="1" value="{{ambMorph.autoRate}}"></label>
+        <label data-tooltip="Sway amount"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-amp" min="0" max="0.5" step="0.02" value="{{ambMorph.autoAmp}}"></label>
+        <label data-tooltip="Sway speed"><i class="fa-solid fa-wave-square"></i><input type="range" name="auto-freq" min="0.01" max="0.3" step="0.01" value="{{ambMorph.autoFreq}}"></label>
+      </div>
     </div>
     {{/if}}
     <div class="maestro-scroll layout-{{layout}}">

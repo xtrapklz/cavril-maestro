@@ -36,6 +36,19 @@ export const GEOM = { CX: 220, CY: 172, R: 118, VBW: 440, VBH: 360, GAP: 13 };
 
 const angDist = (a, b) => { let d = Math.abs(a - b) % (2 * Math.PI); return d > Math.PI ? (2 * Math.PI) - d : d; };
 
+/* Auto-stroll state: the puck rotates while its radius rides a sine wave. */
+let _autoTimer = null, _autoT = 0, _autoAngle = -Math.PI / 2;
+
+/** Move every visible morpher puck to a normalized radius `r` / `angle` (auto-stroll visual). */
+function movePucks(r, angle) {
+  for (const svg of document.querySelectorAll(".mm-svg")) {
+    const cx = +svg.dataset.cx, cy = +svg.dataset.cy, rr = +svg.dataset.r;
+    if (!Number.isFinite(cx)) continue;
+    const puck = svg.querySelector(".mm-puck");
+    if (puck) { puck.setAttribute("cx", (cx + rr * r * Math.cos(angle)).toFixed(1)); puck.setAttribute("cy", (cy + rr * r * Math.sin(angle)).toFixed(1)); }
+  }
+}
+
 /** Onset-density feature (0 = smooth/sustained, 1 = percussive/transient-heavy). */
 function percussiveness(buf) {
   const data = buf.getChannelData(0);
@@ -118,8 +131,39 @@ export const MaestroMixer = {
         lx: +lx.toFixed(1), ly: +(ly + 3).toFixed(1), anchor: c < -0.3 ? "end" : (c > 0.3 ? "start" : "middle")
       };
     });
-    return { name: ambienceMeta(info.arrangementId).name, tracks, puckX: CX, puckY: CY };
+    const num = (key, dflt) => { const v = Number(game.settings.get(MODULE_ID, key)); return Number.isFinite(v) ? v : dflt; };
+    return {
+      name: ambienceMeta(info.arrangementId).name, tracks, puckX: CX, puckY: CY,
+      auto: !!_autoTimer, autoRate: num("autoRate", 12), autoAmp: num("autoAmp", 0.4), autoFreq: num("autoFreq", 0.06)
+    };
   },
+
+  /* ----- Auto-stroll: rotate the puck + sine-wave its radius ----- */
+
+  autoActive() { return !!_autoTimer; },
+
+  /** Start the auto-stroll on a channel (rate/amp/freq read live from settings). */
+  startAuto(channel) {
+    if (_autoTimer) return;
+    _autoT = 0; _autoAngle = -Math.PI / 2;
+    const dt = 0.18; let n = 0;
+    const tick = () => {
+      const rate = (Number(game.settings.get(MODULE_ID, "autoRate")) || 12) * Math.PI / 180;   // deg/s → rad/s
+      const amp = Math.max(0, Math.min(0.5, Number(game.settings.get(MODULE_ID, "autoAmp")) ?? 0.4));
+      const freq = Math.max(0.005, Number(game.settings.get(MODULE_ID, "autoFreq")) || 0.06);
+      _autoT += dt; _autoAngle += rate * dt;
+      const r = Math.max(0.02, Math.min(1, 0.6 + amp * Math.sin(2 * Math.PI * freq * _autoT)));
+      this.applyMix(channel, r, _autoAngle);
+      if ((n++ % 3) === 0) this.broadcast(channel);       // sync players ~every 0.5s
+      movePucks(r, _autoAngle);
+    };
+    _autoTimer = setInterval(tick, 180);
+    tick();
+  },
+
+  stopAuto() { if (_autoTimer) { clearInterval(_autoTimer); _autoTimer = null; } },
+
+  toggleAuto(channel, rerender) { if (_autoTimer) this.stopAuto(); else this.startAuto(channel); if (rerender) rerender(); },
 
   /** Wire pointer interaction (puck drag, node mute/reorder, reset, shuffle) onto an .mm-svg inside rootEl. */
   wire(rootEl, channel, rerender) {
@@ -159,6 +203,10 @@ export const MaestroMixer = {
     });
     rootEl.querySelector("[data-reset]")?.addEventListener("click", () => { this.reset(channel); puck.setAttribute("cx", CX); puck.setAttribute("cy", CY); });
     rootEl.querySelector("[data-shuffle]")?.addEventListener("click", () => this.shuffleOrder(channel).then(rerender));
+    rootEl.querySelector("[data-auto]")?.addEventListener("click", () => this.toggleAuto(channel, rerender));
+    for (const [sel, key] of [['[name="auto-rate"]', "autoRate"], ['[name="auto-amp"]', "autoAmp"], ['[name="auto-freq"]', "autoFreq"]]) {
+      rootEl.querySelector(sel)?.addEventListener("input", e => game.settings.set(MODULE_ID, key, Number(e.target.value)));
+    }
   },
 
   /** Per-track volume factors for a puck at normalized radius `pr` (0..1), angle `pa`. */

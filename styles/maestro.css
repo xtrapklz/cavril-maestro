@@ -113,6 +113,13 @@
 .maestro-director .mini-morph .mm-svg { width: 100%; max-width: 330px; }
 .maestro-director [data-morph-toggle].active { background: var(--color-shadow-primary, #ff6400); color: #fff; }
 
+/* Auto-stroll controls (shared by inline + pop-out morpher) */
+.mm-auto { display: flex; align-items: center; gap: 6px; padding: 3px 4px; flex-wrap: wrap; }
+.mm-auto button[data-auto] { width: 30px; height: 26px; flex: 0 0 auto; }
+.mm-auto button[data-auto].active { background: var(--color-shadow-primary, #ff6400); color: #fff; }
+.mm-auto label { display: flex; align-items: center; gap: 4px; flex: 1 1 80px; min-width: 64px; font-size: 10px; opacity: .7; }
+.mm-auto label input[type="range"] { flex: 1; min-width: 44px; }
+
 /* Wildcard soundboard tile badge (random-variation count) */
 .maestro-director .layout-grid .maestro-item.sb-wild { border-style: dashed; }
 .maestro-director .wild-badge { position: absolute; bottom: 2px; right: 3px; font-size: 9px; font-weight: 700; opacity: .75; line-height: 1; }
