@@ -7,8 +7,20 @@
   {{/if}}
 
   <div class="maestro-toolbar">
-    <input type="search" name="search" placeholder="Search this zone…" value="{{search}}" autocomplete="off">
-    {{#if interiorOn}}<input type="range" name="interior-freq" class="interior-freq" min="200" max="6000" step="100" value="{{interiorFreq}}" data-tooltip="Interior muffle amount — lower = more muffled">{{/if}}
+    <input type="search" name="search" placeholder="Search…" value="{{search}}" autocomplete="off">
+    <button type="button" class="ct-switch {{#if tensionActive}}on{{/if}}" data-mood-switch {{#unless canTension}}disabled{{/unless}} data-tooltip="Calm ⟷ Tension{{#unless canTension}} (no tense variant for this theme){{/unless}}">
+      <span class="ct-opt" data-tooltip="Calm"><i class="fa-solid fa-feather"></i></span>
+      <span class="ct-knob"></span>
+      <span class="ct-opt" data-tooltip="Tension"><i class="fa-solid fa-bolt"></i></span>
+    </button>
+    <span class="interior-group">
+      <button type="button" class="ct-switch interior {{#if interiorOn}}on{{/if}}" data-interior data-tooltip="Exterior ⟷ Interior — muffle ambience + weather and add a room-tone bed, as if heard from inside">
+        <span class="ct-opt" data-tooltip="Exterior"><i class="fa-solid fa-tree"></i></span>
+        <span class="ct-knob"></span>
+        <span class="ct-opt" data-tooltip="Interior"><i class="fa-solid fa-house"></i></span>
+      </button>
+      {{#if interiorOn}}<input type="range" name="interior-freq" class="interior-freq" min="200" max="6000" step="100" value="{{interiorFreq}}" data-tooltip="Muffle amount — lower = more muffled">{{/if}}
+    </span>
     <span class="phase-chip {{phase}} {{#unless autoDayNight}}off{{/unless}}" data-tooltip="In-world: {{phase}} — auto day/night is {{#if autoDayNight}}on{{else}}off (set it in module settings){{/if}}"><i class="fa-solid {{phaseIcon}}"></i></span>
     <div class="seg layout-toggle" data-tooltip="Layout">
       <button type="button" data-layout="list" class="{{#if layoutList}}active{{/if}}" data-tooltip="List"><i class="fa-solid fa-list"></i></button>
@@ -27,18 +39,6 @@
     {{/if}}
     <button type="button" data-tab="fav" class="{{#if tabFav}}active{{/if}}" data-tooltip="Favorites"><i class="fa-solid fa-star"></i> <span class="cnt">{{counts.fav}}</span></button>
     <button type="button" data-tab="preset" class="{{#if tabPreset}}active{{/if}}" data-tooltip="Presets"><i class="fa-solid fa-bolt"></i> <span class="cnt">{{counts.preset}}</span></button>
-    <div class="global-switches">
-      <button type="button" class="ct-switch {{#if tensionActive}}on{{/if}}" data-mood-switch {{#unless canTension}}disabled{{/unless}} data-tooltip="Calm ⟷ Tension{{#unless canTension}} (no tense variant for this theme){{/unless}}">
-        <span class="ct-opt" data-tooltip="Calm"><i class="fa-solid fa-feather"></i></span>
-        <span class="ct-knob"></span>
-        <span class="ct-opt" data-tooltip="Tension"><i class="fa-solid fa-bolt"></i></span>
-      </button>
-      <button type="button" class="ct-switch interior {{#if interiorOn}}on{{/if}}" data-interior data-tooltip="Exterior ⟷ Interior — muffle ambience + weather and add a room-tone bed, as if heard from inside">
-        <span class="ct-opt" data-tooltip="Exterior"><i class="fa-solid fa-tree"></i></span>
-        <span class="ct-knob"></span>
-        <span class="ct-opt" data-tooltip="Interior"><i class="fa-solid fa-house"></i></span>
-      </button>
-    </div>
   </div>
 
   {{!-- MUSIC ZONE --}}

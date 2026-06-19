@@ -18,7 +18,10 @@
 
 /* Toolbar: search + layout toggle */
 .maestro-director .maestro-toolbar { display: flex; gap: 6px; align-items: center; }
-.maestro-director .maestro-toolbar input[type="search"] { flex: 1; min-width: 0; }
+.maestro-director .maestro-toolbar input[type="search"] { flex: 1 1 60px; min-width: 56px; max-width: 190px; }
+/* Calm/Tension + Exterior/Interior switches live on the toolbar; interior sits next to its cutoff slider */
+.maestro-director .maestro-toolbar .interior-group { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; }
+.maestro-director .maestro-toolbar .phase-chip { margin-left: auto; }   /* pin the phase chip + layout toggle to the right */
 
 /* Segmented controls (layout + mood) */
 .maestro-director .seg,
@@ -68,8 +71,6 @@
   background: #46d27a; box-shadow: 0 0 4px #46d27a; animation: maestro-tab-pulse 1.4s ease-in-out infinite;
 }
 @keyframes maestro-tab-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
-/* The two global switches, pushed to the right end of the tab row */
-.maestro-director .maestro-tabs .global-switches { flex: 0 0 auto; display: flex; align-items: center; gap: 5px; margin-left: 4px; }
 
 /* Zones — only the active one is shown; it fills the remaining height */
 .maestro-director .maestro-zone { display: none; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
@@ -291,4 +292,4 @@ a.maestro-link i { font-size: .85em; opacity: .85; }
 .maestro-director .ct-switch.interior .ct-knob { background: #6b6b6b; }
 .maestro-director .ct-switch.interior.on { background: #6a4a2a66; }
 .maestro-director .ct-switch.interior.on .ct-knob { background: #b9851f; }
-.maestro-director .interior-freq { flex: 0 1 96px; min-width: 56px; }
+.maestro-director .interior-freq { flex: 0 0 56px; width: 56px; min-width: 56px; }

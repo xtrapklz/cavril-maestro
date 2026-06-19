@@ -34,6 +34,9 @@ export const CHANNEL_FOR_TAB = { music: "music", amb: "environment" };
  * inline Director morpher use it; the inline one is just CSS-sized smaller. */
 export const GEOM = { CX: 220, CY: 172, R: 138, VBW: 440, VBH: 360, GAP: 15 };
 
+/** Shortest angular distance between two angles (0..π). */
+const angDist = (a, b) => { const d = Math.abs(a - b) % (2 * Math.PI); return d > Math.PI ? (2 * Math.PI) - d : d; };
+
 /* Auto-stroll state: the puck rotates while its radius rides a sine wave. */
 let _autoTimer = null, _autoT = 0, _autoAngle = -Math.PI / 2;
 
@@ -249,23 +252,26 @@ export const MaestroMixer = {
 
   /**
    * Per-track volume factors for a puck at normalized radius `pr` (0..1), angle `pa`.
-   * Volume relates DIRECTLY to the Euclidean distance from the puck point to each
-   * track's anchor on the ring — no angular window, no centre floor. The intensity
-   * graph therefore morphs from a full circle (puck centred → every track full) to a
-   * line/teardrop pinched toward the puck (puck at the rim → nearest track full, far
-   * side → 0):
-   *   d = |anchor − puck| in ring-radius units, 0 (on the track) … 2 (antipode);
-   *   factor = clamp(0,1, 2 − d) → centre (d=1)=full · near rim (d→0)=full · far rim (d→2)=0.
+   *
+   * A track is full inside a small angular "plateau" (half the spacing between
+   * anchors, so the puck between two adjacent tracks keeps BOTH full); outside it the
+   * level falls off, and that falloff sharpens with the puck's radius. So the graph
+   * morphs from a full circle (centre → every track at base) to a tight spike toward
+   * the puck (rim → only the nearest one, or two if it sits between them, at full;
+   * everything else toward 0). No centre floor — far tracks reach 0 well before the rim.
    */
   factors(channel, pr, pa) {
     const info = this.tracksFor(channel);
     if (!info) return null;
     const r = Math.max(0, Math.min(1, pr));
+    const n = Math.max(1, info.tracks.length);
+    const hw = Math.PI / n;            // plateau half-width = half the angular spacing
+    const SHARP = 0.9;                 // higher = tighter solo at the rim
     const f = {};
     for (const t of info.tracks) {
       if (t.muted) { f[t.id] = 0; continue; }
-      const d = Math.sqrt(1 + r * r - 2 * r * Math.cos(pa - t.angle));   // puck→anchor distance (R units)
-      f[t.id] = Math.max(0, Math.min(1, 2 - d));
+      const fall = r * (SHARP / hw) * Math.max(0, angDist(pa, t.angle) - hw);   // 0 in the plateau; grows outside, scaled by radius
+      f[t.id] = Math.max(0, Math.min(1, 1 - fall));
     }
     return { info, f };
   },
