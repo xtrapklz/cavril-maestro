@@ -21,6 +21,8 @@
 .maestro-director .maestro-toolbar input[type="search"] { flex: 1 1 60px; min-width: 56px; max-width: 190px; }
 /* Calm/Tension + Exterior/Interior switches live on the toolbar; interior sits next to its cutoff slider */
 .maestro-director .maestro-toolbar .interior-group { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; }
+.maestro-director .door-toggle { flex: 0 0 auto; width: 28px; height: 26px; border: 1px solid var(--color-border-dark, #1e1e1e); border-radius: 6px; background: rgba(0,0,0,0.2); opacity: .65; }
+.maestro-director .door-toggle.active { opacity: 1; background: var(--color-shadow-primary, #ff6400); color: #fff; }
 .maestro-director .maestro-toolbar .phase-chip { margin-left: auto; }   /* pin the phase chip + layout toggle to the right */
 
 /* Segmented controls (layout + mood) */

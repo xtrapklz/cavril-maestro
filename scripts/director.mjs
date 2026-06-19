@@ -362,6 +362,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       tensionActive: onTension,
       interiorOn: !!game.settings.get(MODULE_ID, "interiorOn"),
       interiorFreq: Number(game.settings.get(MODULE_ID, "interiorFreq")) || 900,
+      doorSound: !!game.settings.get(MODULE_ID, "doorSound"),
       // Ambience transport
       hasAmb: !!env.arrangementId,
       nowAmb: env.arrangementId ? (this.#cn("amb", curBase) || ambienceMeta(env.arrangementId).name) : "—",
@@ -550,6 +551,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     on('[data-morph]', "click", () => Maestro.openMorph?.());
     // Interior/exterior — low-pass the weather channel for an "inside" perspective.
     on('[data-interior]', "click", () => game.settings.set(MODULE_ID, "interiorOn", !game.settings.get(MODULE_ID, "interiorOn")));
+    // Door SFX toggle — whether the interior/exterior switch plays the door sound.
+    on('[data-door-toggle]', "click", () => game.settings.set(MODULE_ID, "doorSound", !game.settings.get(MODULE_ID, "doorSound")));
     on('[name="interior-freq"]', "input", e => game.settings.set(MODULE_ID, "interiorFreq", Number(e.target.value)));
     on('[data-morph-toggle]', "click", async () => { await game.settings.set(MODULE_ID, "morphCollapsed", !game.settings.get(MODULE_ID, "morphCollapsed")); this.render(); });
     // Inline ambience morpher — wire the embedded pad (shared with the pop-out).

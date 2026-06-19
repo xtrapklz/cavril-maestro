@@ -471,6 +471,26 @@ globalThis.Maestro = {
     }
   },
 
+  /** The core door-open sound path (from CONFIG.Wall.doorSounds), falling back to the wood door. */
+  doorSoundSrc() {
+    try {
+      const sets = CONFIG?.Wall?.doorSounds || {};
+      const pick = sets.woodBasic || Object.values(sets)[0];
+      let open = pick?.open;
+      if (Array.isArray(open)) open = open[0];
+      if (typeof open === "string" && open) return open;
+    } catch (_e) { /* ignore */ }
+    return "sounds/doors/wood/open.ogg";
+  },
+
+  /** Play the core door-open SFX once, locally — the interior/exterior transition cue (gated by the doorSound setting). */
+  playDoorSound() {
+    if (!game.settings.get(MODULE_ID, "doorSound")) return;
+    const v = Number(game.settings.get(MODULE_ID, "sfxVolume"));
+    try { foundry.audio.AudioHelper.play({ src: this.doorSoundSrc(), volume: Number.isFinite(v) ? v : 0.8, loop: false, autoplay: true }, false); }
+    catch (e) { console.warn(`${MODULE_ID} | door sound failed:`, e); }
+  },
+
   /* ----- Custom display names (GM-authored, world-shared) ----- */
 
   /**
@@ -781,7 +801,12 @@ Hooks.once("init", () => {
   // bed (world-shared so all hear it).
   game.settings.register(MODULE_ID, "interiorOn", {
     scope: "world", config: false, type: Boolean, default: false,
-    onChange: v => { try { Maestro.setInteriorFilter(v, game.settings.get(MODULE_ID, "interiorFreq"), true); Maestro.setInteriorBed(v); } catch (_e) {} MaestroDirector.refresh(); }
+    onChange: v => { try { Maestro.setInteriorFilter(v, game.settings.get(MODULE_ID, "interiorFreq"), true); Maestro.setInteriorBed(v); Maestro.playDoorSound(); } catch (_e) {} MaestroDirector.refresh(); }
+  });
+  // Door SFX cue on the interior/exterior toggle (core door-open sound).
+  game.settings.register(MODULE_ID, "doorSound", {
+    scope: "world", config: false, type: Boolean, default: true,
+    onChange: () => MaestroDirector.refresh()
   });
   game.settings.register(MODULE_ID, "interiorFreq", {
     scope: "world", config: false, type: Number, default: 900,
