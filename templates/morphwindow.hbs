@@ -18,10 +18,10 @@
       <circle class="mm-puck" cx="{{puckX}}" cy="{{puckY}}" r="11"></circle>
     </svg>
     <div class="mm-auto vertical">
-      <button type="button" data-auto class="{{#if auto}}active{{/if}}" data-tooltip="Auto-stroll — rotate the mix automatically"><i class="fa-solid {{#if auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
-      <label data-tooltip="Rotation speed"><i class="fa-solid fa-rotate"></i><input type="range" name="auto-rate" min="2" max="60" step="1" value="{{autoRate}}"></label>
-      <label data-tooltip="Sway amount"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-amp" min="0" max="0.5" step="0.02" value="{{autoAmp}}"></label>
-      <label data-tooltip="Sway speed"><i class="fa-solid fa-wave-square"></i><input type="range" name="auto-freq" min="0.01" max="0.3" step="0.01" value="{{autoFreq}}"></label>
+      <button type="button" data-auto class="{{#if auto}}active{{/if}}" data-tooltip="Auto-stroll — drift the mix automatically"><i class="fa-solid {{#if auto}}fa-pause{{else}}fa-play{{/if}}"></i></button>
+      <label class="mm-wave" data-tooltip="Waveform"><i class="fa-solid fa-wave-square"></i><select name="auto-wave">{{#each waveOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+      <label data-tooltip="Speed"><i class="fa-solid fa-gauge-high"></i><input type="range" name="auto-speed" min="1" max="20" step="0.5" value="{{autoSpeed}}"></label>
+      <label data-tooltip="Intensity — swing away from the midpoint ring"><i class="fa-solid fa-up-down"></i><input type="range" name="auto-intensity" min="0" max="0.5" step="0.02" value="{{autoIntensity}}"></label>
     </div>
   </div>
   <div class="mm-hint">Centre = full mix · edge = solo · hover a node for its name · click = mute · drag = re-order · ▶ auto-strolls</div>

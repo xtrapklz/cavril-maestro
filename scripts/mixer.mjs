@@ -65,6 +65,19 @@ function percussiveness(buf) {
   return Math.max(0, Math.min(1, (onsets / (buf.duration || 1)) / 8));
 }
 
+/** Auto-stroll waveform shapes → value in [-1, 1] for a phase in cycles. */
+export const WAVES = ["sine", "triangle", "square", "saw", "random"];
+function waveform(type, phase) {
+  const p = phase - Math.floor(phase);   // 0..1
+  switch (type) {
+    case "triangle": return 4 * Math.abs(p - 0.5) - 1;
+    case "square": return p < 0.5 ? 1 : -1;
+    case "saw": return 2 * p - 1;
+    case "random": return 0.6 * Math.sin(2 * Math.PI * phase) + 0.3 * Math.sin(2 * Math.PI * phase * 1.7 + 1) + 0.1 * Math.sin(2 * Math.PI * phase * 0.43 + 2);
+    default: return Math.sin(2 * Math.PI * phase);   // sine
+  }
+}
+
 /** Polygon points for the live intensity graph: each track's vertex at radius ∝ its factor. */
 function graphPoints(tracks, factors) {
   const { CX, CY, R } = GEOM;
@@ -149,10 +162,12 @@ export const MaestroMixer = {
       };
     });
     const num = (key, dflt) => { const v = Number(game.settings.get(MODULE_ID, key)); return Number.isFinite(v) ? v : dflt; };
+    const curWave = game.settings.get(MODULE_ID, "autoWave") || "sine";
     return {
       name: ambienceMeta(info.arrangementId).name, tracks, puckX: CX, puckY: CY,
       points: graphPoints(info.tracks, Maestro.sound?.containers?.[channel]?._mix?.factors),
-      auto: !!_autoTimer, autoRate: num("autoRate", 12), autoAmp: num("autoAmp", 0.4), autoFreq: num("autoFreq", 0.06)
+      auto: !!_autoTimer, autoWave: curWave, autoSpeed: num("autoSpeed", 6), autoIntensity: num("autoIntensity", 0.35),
+      waveOptions: WAVES.map(w => ({ value: w, label: w.charAt(0).toUpperCase() + w.slice(1), selected: w === curWave }))
     };
   },
 
@@ -160,17 +175,23 @@ export const MaestroMixer = {
 
   autoActive() { return !!_autoTimer; },
 
-  /** Start the auto-stroll on a channel (rate/amp/freq read live from settings). */
+  /**
+   * Start the auto-stroll on a channel (wave/speed/intensity read live from settings).
+   * The puck rotates around the circle while its radius rides the chosen waveform,
+   * oscillating around the 0.5 midpoint (halfway between centre and rim). `intensity`
+   * is the deviation from 0.5 (0 = stay on the midpoint ring, 0.5 = full centre↔rim
+   * swing); `speed` drives both the rotation and the wave's cadence.
+   */
   startAuto(channel) {
     if (_autoTimer) return;
     _autoT = 0; _autoAngle = -Math.PI / 2;
     const dt = 0.18; let n = 0;
     const tick = () => {
-      const rate = (Number(game.settings.get(MODULE_ID, "autoRate")) || 12) * Math.PI / 180;   // deg/s → rad/s
-      const amp = Math.max(0, Math.min(0.5, Number(game.settings.get(MODULE_ID, "autoAmp")) ?? 0.4));
-      const freq = Math.max(0.005, Number(game.settings.get(MODULE_ID, "autoFreq")) || 0.06);
-      _autoT += dt; _autoAngle += rate * dt;
-      const r = Math.max(0.02, Math.min(1, 0.6 + amp * Math.sin(2 * Math.PI * freq * _autoT)));
+      const wave = game.settings.get(MODULE_ID, "autoWave") || "sine";
+      const speed = Math.max(0.2, Number(game.settings.get(MODULE_ID, "autoSpeed")) || 6);
+      const intensity = Math.max(0, Math.min(0.5, Number(game.settings.get(MODULE_ID, "autoIntensity")) ?? 0.35));
+      _autoT += dt; _autoAngle += (speed * 0.10) * dt;                          // rotation around the circle
+      const r = Math.max(0.02, Math.min(1, 0.5 + intensity * waveform(wave, _autoT * speed * 0.08)));
       this.applyMix(channel, r, _autoAngle);
       if ((n++ % 3) === 0) this.broadcast(channel);       // sync players ~every 0.5s
       movePucks(r, _autoAngle);
@@ -222,7 +243,8 @@ export const MaestroMixer = {
     rootEl.querySelector("[data-reset]")?.addEventListener("click", () => { this.reset(channel); puck.setAttribute("cx", CX); puck.setAttribute("cy", CY); });
     rootEl.querySelector("[data-shuffle]")?.addEventListener("click", () => this.shuffleOrder(channel).then(rerender));
     rootEl.querySelector("[data-auto]")?.addEventListener("click", () => this.toggleAuto(channel, rerender));
-    for (const [sel, key] of [['[name="auto-rate"]', "autoRate"], ['[name="auto-amp"]', "autoAmp"], ['[name="auto-freq"]', "autoFreq"]]) {
+    rootEl.querySelector('[name="auto-wave"]')?.addEventListener("change", e => game.settings.set(MODULE_ID, "autoWave", e.target.value));
+    for (const [sel, key] of [['[name="auto-speed"]', "autoSpeed"], ['[name="auto-intensity"]', "autoIntensity"]]) {
       rootEl.querySelector(sel)?.addEventListener("input", e => game.settings.set(MODULE_ID, key, Number(e.target.value)));
     }
   },

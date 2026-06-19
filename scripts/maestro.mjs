@@ -683,10 +683,11 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "favOrder", { scope: "client", config: false, type: Array, default: [], onChange: () => MaestroDirector.refresh() });
   // Inline ambience morpher minimized inside the Director (per user).
   game.settings.register(MODULE_ID, "morphCollapsed", { scope: "client", config: false, type: Boolean, default: true });
-  // Auto-stroll params (morpher): rotation deg/sec, radius sine amplitude, frequency Hz.
-  game.settings.register(MODULE_ID, "autoRate", { scope: "client", config: false, type: Number, default: 12 });
-  game.settings.register(MODULE_ID, "autoAmp", { scope: "client", config: false, type: Number, default: 0.4 });
-  game.settings.register(MODULE_ID, "autoFreq", { scope: "client", config: false, type: Number, default: 0.06 });
+  // Auto-stroll params (morpher): waveform preset for the radius, plus speed + intensity.
+  // intensity = how far the radius deviates from the 0.5 midpoint (centre↔rim swing).
+  game.settings.register(MODULE_ID, "autoWave", { scope: "client", config: false, type: String, default: "sine" });
+  game.settings.register(MODULE_ID, "autoSpeed", { scope: "client", config: false, type: Number, default: 6 });
+  game.settings.register(MODULE_ID, "autoIntensity", { scope: "client", config: false, type: Number, default: 0.35 });
 
   // Interior perspective: low-pass the weather channel (world-shared so all hear it).
   game.settings.register(MODULE_ID, "interiorOn", {
@@ -1012,6 +1013,32 @@ Hooks.on("hotbarDrop", (bar, data, slot) => {
       });
       if (macro) await game.user.assignHotbarMacro(macro, slot);
     } catch (e) { console.warn(`${MODULE_ID} | hotbar macro create failed:`, e); }
+  })();
+  return false;
+});
+
+// Dragging a Maestro cue from the Director (or a journal link) onto the scene canvas
+// drops a SILENT AmbientSound flagged as a trigger: when a party token enters its
+// radius, the proximity system below fires the cue. No audio rides the sound itself
+// (path left empty) — it's purely a placed trigger zone you can move/resize/delete.
+Hooks.on("dropCanvasData", (cnv, data) => {
+  if (data?.type !== "cavril-maestro" || !data.ref) return;
+  if (!game.user?.isGM) { ui.notifications?.warn("Only a GM can place a Maestro trigger."); return false; }
+  const scene = cnv?.scene;
+  if (!scene || !Number.isFinite(data.x) || !Number.isFinite(data.y)) return false;
+  (async () => {
+    try {
+      const radius = Math.max(5, Math.round((cnv.dimensions?.distance || 5) * 4));   // ~4 grid spaces
+      await scene.createEmbeddedDocuments("AmbientSound", [{
+        x: Math.round(data.x), y: Math.round(data.y), radius, walls: false,
+        flags: { [MODULE_ID]: { ref: data.ref } }
+      }]);
+      const meta = Maestro.refMeta(data.ref);
+      ui.notifications?.info(`Maestro trigger placed: ${data.label || meta.label || data.ref}`);
+    } catch (e) {
+      console.warn(`${MODULE_ID} | canvas trigger create failed:`, e);
+      ui.notifications?.error("Could not place Maestro trigger.");
+    }
   })();
   return false;
 });
