@@ -408,6 +408,33 @@ globalThis.Maestro = {
         else if (kind === "sfx") this.playOneShot(id);
       } catch (e) { console.warn(`${MODULE_ID} | preset member failed (${key}):`, e); }
     }
+  },
+
+  /* ----- Custom icons (per cue) + soundboard aliases (per file/folder) ----- */
+
+  /** Custom Font Awesome class for a cue, or "" if none. */
+  customIcon(kind, id) { return (game.settings.get(MODULE_ID, "customIcons") || {})[`${kind}:${id}`] || ""; },
+
+  /** Set a cue's custom icon class (e.g. "fa-solid fa-dragon"); blank clears. */
+  async setCustomIcon(kind, id, cls) {
+    if (!game.user.isGM) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "customIcons") || {});
+    const key = `${kind}:${id}`;
+    const v = String(cls || "").trim();
+    if (v) map[key] = v; else delete map[key];
+    return game.settings.set(MODULE_ID, "customIcons", map);
+  },
+
+  /** Display alias for a soundboard file/folder path, or "" if none. */
+  sbAlias(path) { return (game.settings.get(MODULE_ID, "sbAliases") || {})[path] || ""; },
+
+  /** Set a soundboard file/folder display alias (non-destructive); blank clears. */
+  async setSbAlias(path, name) {
+    if (!game.user.isGM) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "sbAliases") || {});
+    const v = String(name || "").trim();
+    if (v) map[path] = v; else delete map[path];
+    return game.settings.set(MODULE_ID, "sbAliases", map);
   }
 };
 
@@ -482,6 +509,10 @@ Hooks.once("init", () => {
 
   // Tags per cue ({ "kind:id": ["tag", …] }) — searchable + power the Presets tab.
   game.settings.register(MODULE_ID, "tags", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
+  // Custom per-cue icons ({ "kind:id": "fa-solid fa-…" }).
+  game.settings.register(MODULE_ID, "customIcons", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
+  // Soundboard display aliases ({ path: "Alias" }) — non-destructive renames.
+  game.settings.register(MODULE_ID, "sbAliases", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
 
   // Auto-pick (and switch) day/night arrangement variants from the calendar.
   game.settings.register(MODULE_ID, "autoDayNight", {

@@ -114,9 +114,9 @@
     <div class="maestro-scroll layout-{{layout}}">
       {{#each weatherItems}}
       <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="weather" data-id="{{id}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
-        <i class="fa-solid fa-cloud"></i><span class="nm">{{name}}</span>
+        <i class="{{icon}}"></i><span class="nm">{{name}}</span>
         <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
-        <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
+        <button type="button" class="maestro-rename" data-rename data-tooltip="Rename / tag / icon"><i class="fa-solid fa-pen"></i></button>
       </div>
       {{/each}}
     </div>
@@ -138,6 +138,7 @@
       {{#each sbDirs}}
       <div class="maestro-item sb-folder" role="button" tabindex="0" data-kind="sbdir" data-path="{{path}}" data-name="{{name}}" data-cat="sfx">
         <i class="fa-solid fa-folder"></i><span class="nm">{{name}}</span>
+        <button type="button" class="maestro-rename" data-sb-rename data-tooltip="Rename folder (alias)"><i class="fa-solid fa-pen"></i></button>
       </div>
       {{/each}}
       {{#each soundboard}}
@@ -145,6 +146,7 @@
         <i class="fa-solid {{#if wild}}fa-shuffle{{else}}fa-volume-high{{/if}}"></i><span class="nm">{{name}}</span>
         {{#if wild}}<span class="wild-badge" data-tooltip="{{count}} variations — random each play">{{count}}</span>{{/if}}
         <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
+        {{#unless wild}}<button type="button" class="maestro-rename" data-sb-rename data-tooltip="Rename (alias)"><i class="fa-solid fa-pen"></i></button>{{/unless}}
       </div>
       {{/each}}
     </div>

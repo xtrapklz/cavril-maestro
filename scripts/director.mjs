@@ -75,6 +75,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
   /** A cue's tags as a comma-joined string (for the dialog + search). */
   #tags(kind, id) { return (Maestro.tagsFor?.(kind, id) || []).join(", "); }
 
+  /** A cue's icon — custom override if set, else the built-in. */
+  #icon(kind, id, fallback) { return Maestro.customIcon?.(kind, id) || fallback; }
+
   /** Build the radial morpher view for a channel (anchors placed on a circle), or null. */
   #morphView(channel) {
     const info = MaestroMixer.tracksFor?.(channel);
@@ -123,7 +126,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const custom = this.#cn("music", s.id);
       (musicByCat[m.cat] ??= []).push({
         id: s.id, favId: s.id, fav: this.#fav("music", s.id), tags: this.#tags("music", s.id), base: m.name, name: custom || m.name, cat: m.cat,
-        sub: custom ? m.name : s.id, icon: m.icon, active: s.id === music.soundscapeId
+        sub: custom ? m.name : s.id, icon: this.#icon("music", s.id, m.icon), active: s.id === music.soundscapeId
       });
     }
 
@@ -146,7 +149,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       (ambByCat[m.cat] ??= []).push({
         id: canonical, renameId: base, base, favId: base, fav: this.#fav("amb", base), tags: this.#tags("amb", base), cat: m.cat,
         name: custom || m.name, sub: custom ? m.name : (envArrs[canonical]?.label ?? ""),
-        icon: m.icon, active: !!env.arrangementId && base === curBase
+        icon: this.#icon("amb", base, m.icon), active: !!env.arrangementId && base === curBase
       });
     }
 
@@ -155,7 +158,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       ? Object.keys(soundscapes.weather?.arrangements ?? {}).map(id => {
           const base = WEATHER[id] ?? prettify(id);
           const custom = this.#cn("weather", id);
-          return { id, favId: id, fav: this.#fav("weather", id), tags: this.#tags("weather", id), base, name: custom || base, cat: "weather", active: id === weather.arrangementId };
+          return { id, favId: id, fav: this.#fav("weather", id), tags: this.#tags("weather", id), icon: this.#icon("weather", id, "fa-solid fa-cloud"), base, name: custom || base, cat: "weather", active: id === weather.arrangementId };
         })
       : [];
 
@@ -163,7 +166,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const sbRoot = String(game.settings.get(MODULE_ID, "soundboardPath") || "").trim();
     const sbCur = this.#sbPath || sbRoot;
     const sbEntry = sbEnabled ? this.#sbCache.get(sbCur) : null;
-    const sbDirs = (sbEntry?.dirs ?? []).map(d => ({ path: d.path, name: d.name }));
+    const sbDirs = (sbEntry?.dirs ?? []).map(d => ({ path: d.path, name: Maestro.sbAlias?.(d.path) || d.name }));
     // Wildcard sounds: files sharing a name before "_" collapse to one tile that
     // plays a random variation each trigger.
     const sbGroups = {};
@@ -175,7 +178,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const soundboard = Object.entries(sbGroups).map(([prefix, files]) => {
       if (files.length === 1) {
         const f = files[0];
-        return { src: f.src, srcs: "", wild: false, favId: f.src, fav: this.#fav("sfx", f.src), tags: this.#tags("sfx", f.src), name: f.name, cat: "sfx" };
+        return { src: f.src, srcs: "", wild: false, favId: f.src, fav: this.#fav("sfx", f.src), tags: this.#tags("sfx", f.src), name: Maestro.sbAlias?.(f.src) || f.name, cat: "sfx" };
       }
       const srcs = files.map(f => f.src);
       return { src: srcs[0], srcs: srcs.join("|"), wild: true, count: files.length, favId: srcs[0], fav: this.#fav("sfx", srcs[0]), tags: this.#tags("sfx", srcs[0]), name: prettify(prefix), cat: "sfx" };
@@ -191,15 +194,15 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       let it = null;
       if (kind === "music" && soundscapes[fid]) {
         const m = musicMeta(fid);
-        it = { kind, favId: fid, fav: true, id: fid, name: this.#cn("music", fid) || m.name, sub: m.name, icon: m.icon, cat: m.cat };
+        it = { kind, favId: fid, fav: true, id: fid, name: this.#cn("music", fid) || m.name, sub: m.name, icon: this.#icon("music", fid, m.icon), cat: m.cat };
       } else if (kind === "amb" && baseToCanonical[fid]) {
         const canonical = baseToCanonical[fid];
         const m = ambienceMeta(canonical);
-        it = { kind, favId: fid, fav: true, id: canonical, name: this.#cn("amb", fid) || m.name, sub: "", icon: m.icon, cat: m.cat };
+        it = { kind, favId: fid, fav: true, id: canonical, name: this.#cn("amb", fid) || m.name, sub: "", icon: this.#icon("amb", fid, m.icon), cat: m.cat };
       } else if (kind === "weather") {
-        it = { kind, favId: fid, fav: true, id: fid, name: this.#cn("weather", fid) || WEATHER[fid] || prettify(fid), sub: "", icon: "fa-solid fa-cloud", cat: "weather" };
+        it = { kind, favId: fid, fav: true, id: fid, name: this.#cn("weather", fid) || WEATHER[fid] || prettify(fid), sub: "", icon: this.#icon("weather", fid, "fa-solid fa-cloud"), cat: "weather" };
       } else if (kind === "sfx") {
-        const nm = prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, ""));
+        const nm = Maestro.sbAlias?.(fid) || prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, ""));
         it = { kind, favId: fid, fav: true, src: fid, name: nm, sub: "", icon: "fa-solid fa-volume-high", cat: "sfx" };
       }
       if (it) (favByCat[it.cat] ??= []).push(it);
@@ -367,7 +370,16 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const item = e.currentTarget.closest(".maestro-item");
       if (!item) return;
       const { kind, id, renameId, name, default: base, tags } = item.dataset;
-      await this.#promptEdit(kind, renameId || id, name, base, tags || "");
+      const editId = renameId || id;
+      await this.#promptEdit(kind, editId, name, base, tags || "", Maestro.customIcon?.(kind, editId) || "");
+    });
+
+    // Soundboard file/folder rename (non-destructive alias).
+    onAll('[data-sb-rename]', "click", async e => {
+      e.stopPropagation();
+      const item = e.currentTarget.closest(".maestro-item");
+      const path = item?.dataset.path || item?.dataset.src;
+      if (path) await this.#promptSbAlias(path, item.dataset.name || "");
     });
 
     // Favorite star — toggle (per-user; onChange re-renders).
@@ -429,8 +441,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     if (sound) await sound.update({ volume: Number(value) });
   }
 
-  /** Edit a cue's custom name + tags (blank name reverts to default; tags power Presets). */
-  async #promptEdit(kind, id, current, base, currentTags) {
+  /** Edit a cue's custom name + tags + icon (blank name reverts to default; tags power Presets). */
+  async #promptEdit(kind, id, current, base, currentTags, currentIcon) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
     const esc = s => String(s ?? "").replace(/"/g, "&quot;");
     if (DialogV2?.prompt) {
@@ -439,16 +451,39 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
         content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Custom name for <b>${esc(base ?? id)}</b> (blank = built-in name).</p>`
                + `<input type="text" name="nm" value="${esc(current)}" placeholder="${esc(base ?? id)}" style="width:100%;margin-bottom:.55rem">`
                + `<p style="margin:.25rem 0 .4rem;opacity:.75">Tags (comma-separated) — searchable, and each tag becomes a Preset.</p>`
-               + `<input type="text" name="tg" value="${esc(currentTags)}" placeholder="combat, night, docks" style="width:100%">`,
-        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, tags: btn.form.elements.tg.value }) },
+               + `<input type="text" name="tg" value="${esc(currentTags)}" placeholder="combat, night, docks" style="width:100%;margin-bottom:.55rem">`
+               + `<p style="margin:.25rem 0 .4rem;opacity:.75">Icon — a Font Awesome class (blank = default). <a href="https://fontawesome.com/search?o=r&m=free" target="_blank">browse free icons</a></p>`
+               + `<input type="text" name="ic" value="${esc(currentIcon)}" placeholder="fa-solid fa-dragon" style="width:100%">`,
+        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, tags: btn.form.elements.tg.value, icon: btn.form.elements.ic.value }) },
         rejectClose: false
       }).catch(() => null);
       if (!res) return;
       await Maestro.setCustomName(kind, id, res.name);
       await Maestro.setTags(kind, id, String(res.tags || "").split(",").map(s => s.trim()).filter(Boolean));
+      await Maestro.setCustomIcon(kind, id, res.icon);
     } else {
       const next = window.prompt(`Custom name for "${base ?? id}" (blank = default):`, current ?? "");
       if (next !== null) await Maestro.setCustomName(kind, id, next);
     }
+  }
+
+  /** Prompt for a non-destructive display alias for a soundboard file/folder. */
+  async #promptSbAlias(path, current) {
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    const esc = s => String(s ?? "").replace(/"/g, "&quot;");
+    let next = null;
+    if (DialogV2?.prompt) {
+      next = await DialogV2.prompt({
+        window: { title: "Rename (alias)", icon: "fa-solid fa-pen" },
+        content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Display name only — the file/folder isn't renamed. Blank restores the original.</p>`
+               + `<input type="text" name="al" value="${esc(current)}" style="width:100%">`,
+        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => btn.form.elements.al.value },
+        rejectClose: false
+      }).catch(() => null);
+    } else {
+      next = window.prompt("Display alias (blank = original):", current ?? "");
+    }
+    if (next === null || next === undefined) return;
+    await Maestro.setSbAlias(path, next);
   }
 }
