@@ -260,11 +260,29 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     // Active music soundscape — arrangement select + mood.
     const cur = soundscapes[music.soundscapeId];
     const av = (Maestro.activeVariation && Maestro.activeVariation.soundscapeId === music.soundscapeId) ? Maestro.activeVariation.vid : null;
-    const arrangements = cur
-      ? Object.entries(cur.arrangements ?? {})
-          .filter(([id]) => !isTense(id))                 // tense variants live on the Calm/Tension switch
-          .map(([id, v]) => ({ id, label: v?.label ?? prettify(id), selected: id === music.arrangementId && !av }))
-      : [];
+    // Variation buttons: tense variants live on the switch. When auto day/night is
+    // on, collapse Day/Night pairs into one button (no Day/Night word) — the clock
+    // picks the variant. Keyed on ORIGINAL ids, so aliases never matter.
+    let arrangements = [];
+    if (cur) {
+      const autoDN = !!game.settings.get(MODULE_ID, "autoDayNight");
+      if (autoDN) {
+        const seen = new Set();
+        for (const [id] of Object.entries(cur.arrangements ?? {})) {
+          if (isTense(id)) continue;
+          const base = ambienceBase(id);
+          if (seen.has(base)) continue;
+          seen.add(base);
+          const canon = cur.arrangements[`${base}Day`] ? `${base}Day` : (cur.arrangements[`${base}Night`] ? `${base}Night` : id);
+          const label = String(cur.arrangements[canon]?.label ?? prettify(base)).replace(/\s*(day|night)\s*$/i, "") || prettify(base);
+          arrangements.push({ id: canon, label, selected: !av && !!music.arrangementId && ambienceBase(music.arrangementId) === base });
+        }
+      } else {
+        arrangements = Object.entries(cur.arrangements ?? {})
+          .filter(([id]) => !isTense(id))
+          .map(([id, v]) => ({ id, label: v?.label ?? prettify(id), selected: id === music.arrangementId && !av }));
+      }
+    }
     const onTension = !!music.arrangementId && isTense(music.arrangementId);
     const phase = Maestro.dayPhase?.() ?? "day";
 

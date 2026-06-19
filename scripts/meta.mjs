@@ -240,6 +240,31 @@ export function trackIcon(id = "") {
   return "fa-solid fa-volume-high";
 }
 
+/* ---- Track ZONES — a pleasing rotation order for the morpher (by name, not waveform).
+ * Similar timbres cluster into arcs so circling the puck strolls through related
+ * sounds: atmosphere → wind → water → fire → wildlife → foliage → voices →
+ * instruments → mechanical → rock → foley → magic. */
+const TRACK_ZONES = [
+  /drone|pad|ambient|atmos|rumble|\blow|pulse|deep|\bhum\b|tone|swell/i,                              // 0 atmosphere
+  /wind|breeze|gust|howl|gale|whistl/i,                                                               // 1 wind
+  /ocean|wave|tide|\bsea|surf|water|river|drip|bubble|slosh|gutter|pool|waterfall|rain|wet/i,         // 2 water
+  /fire|campfire|bonfire|ember|flame|torch|forge|bonfire/i,                                           // 3 fire
+  /owl|gull|crow|eagle|vulture|raven|sparrow|bird|wing|cricket|mosquito|\bbug|insect|frog|cicada|beast|creature|animal/i, // 4 wildlife
+  /leaf|leaves|grass|tree|forest|jungle|rustle|branch|rainforest|tall|mangrove|farm/i,                // 5 foliage/land
+  /voice|crowd|walla|murmur|children|party|festival|chatter|cheer|talk|choir|vocal|chant|sing/i,      // 6 voices
+  /bell|chime|gong|cello|violin|viola|pluck|harp|gittern|guitar|lute|string|horn|trumpet|brass|flute|woodwind|melody|ostinato|drum|timpani/i, // 7 instruments
+  /mining|pickaxe|cart|metal|scrape|machine|factory|clockwork|steam|gear|chain|wheel|power|container/i, // 8 mechanical
+  /rock|stone|cave|cavern|boulder|quarry|earth|tremor|quake|fall|movement|bigstone/i,                 // 9 rock/earth
+  /foley|footstep|walk|cloth|wood|creak|door|flag/i,                                                  // 10 foley
+  /crystal|shimmer|magic|arcane|spell|glow|sparkle|ghost|aura|whisper|horror|spectral|haunt|eerie|reverse/i // 11 magic/eerie
+];
+
+/** Zone index for a track id (lower = earlier in the rotation); default last. */
+export function trackZoneIndex(id = "") {
+  for (let i = 0; i < TRACK_ZONES.length; i++) if (TRACK_ZONES[i].test(id)) return i;
+  return TRACK_ZONES.length;
+}
+
 /** Display info for a music soundscape id. */
 export function musicMeta(id = "") {
   return MUSIC[id] ?? { name: prettify(id), cat: "theme", icon: CATEGORIES.theme.icon };

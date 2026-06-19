@@ -22,6 +22,7 @@
  */
 
 import { soundscapes } from "./soundscapes.mjs";
+import { trackZoneIndex } from "./meta.mjs";
 
 const MODULE_ID = "cavril-maestro";
 export const SOCKET = `module.${MODULE_ID}`;
@@ -81,10 +82,9 @@ export const MaestroMixer = {
 
     if (order) {
       tracks.sort((a, b) => ((order.indexOf(a.id) + 1) || 1e6) - ((order.indexOf(b.id) + 1) || 1e6));
-    } else if (tracks.length && tracks.every(t => Number.isFinite(t.feature))) {
-      tracks.sort((a, b) => a.feature - b.feature || a.id.localeCompare(b.id));   // smooth … percussive
     } else {
-      tracks.sort((a, b) => b.base - a.base || a.id.localeCompare(b.id));
+      // Name-based zones: similar timbres sit in adjacent arcs (a pleasing stroll).
+      tracks.sort((a, b) => trackZoneIndex(a.id) - trackZoneIndex(b.id) || a.id.localeCompare(b.id));
     }
 
     const n = Math.max(1, tracks.length);
@@ -180,6 +180,17 @@ export const MaestroMixer = {
     factors[trackId] = theme[trackId] ? 0 : 1;
     this.setMix(channel, info.themeKey, factors);
     this.broadcast(channel);
+  },
+
+  /** Shuffle the track order around the circle (persisted per theme, client). */
+  async shuffleOrder(channel) {
+    const info = this.tracksFor(channel);
+    if (!info) return;
+    const ids = info.tracks.map(t => t.id);
+    for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "trackOrder") || {});
+    map[info.themeKey] = ids;
+    await game.settings.set(MODULE_ID, "trackOrder", map);
   },
 
   /** Move a track to the circle slot nearest `angle` and persist the order (per theme, client). */

@@ -34,8 +34,6 @@ export class MaestroMorphWindow extends HandlebarsApplicationMixin(ApplicationV2
   }
   static refresh() { if (MaestroMorphWindow.#instance?.rendered) MaestroMorphWindow.#instance.render(); }
 
-  #busy = false;
-
   async _prepareContext() {
     const info = MaestroMixer.tracksFor(CHANNEL);
     if (!info) return { empty: true };
@@ -55,14 +53,6 @@ export class MaestroMorphWindow extends HandlebarsApplicationMixin(ApplicationV2
 
   _onRender() {
     const el = this.element;
-    // One-time (cached) timbre analysis so nodes cluster by sound.
-    if (game.user?.isGM && !this.#busy) {
-      const info = MaestroMixer.tracksFor(CHANNEL);
-      if (info && info.tracks.some(t => t.src && !Number.isFinite(t.feature))) {
-        this.#busy = true;
-        MaestroMixer.analyzeTracks(CHANNEL).then(c => { if (c && this.rendered) this.render(); }).catch(() => {}).finally(() => { this.#busy = false; });
-      }
-    }
     const svg = el.querySelector(".mm-svg");
     const puck = svg?.querySelector(".mm-puck");
     if (!svg || !puck) return;
@@ -99,5 +89,6 @@ export class MaestroMorphWindow extends HandlebarsApplicationMixin(ApplicationV2
     });
 
     el.querySelector("[data-reset]")?.addEventListener("click", () => { MaestroMixer.reset(CHANNEL); puck.setAttribute("cx", CX); puck.setAttribute("cy", CY); });
+    el.querySelector("[data-shuffle]")?.addEventListener("click", () => MaestroMixer.shuffleOrder(CHANNEL).then(() => this.render()));
   }
 }
