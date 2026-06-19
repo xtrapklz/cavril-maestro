@@ -22,7 +22,7 @@ import { MaestroDirector } from "./director.mjs";
 import { MaestroCombat } from "./combat.mjs";
 import { MaestroMixer, SOCKET } from "./mixer.mjs";
 import { MaestroMorphWindow } from "./morphwindow.mjs";
-import { dayNightVariant, prettify } from "./meta.mjs";
+import { dayNightVariant, prettify, musicMeta, ambienceMeta, WEATHER } from "./meta.mjs";
 
 const MODULE_ID = "cavril-maestro";
 const CHANNELS = ["music", "environment", "weather", "effects"];
@@ -232,6 +232,65 @@ globalThis.Maestro = {
 
   /** Open the GM Director panel. */
   openDirector() { return MaestroDirector.open(); },
+
+  /* ----- Universal reference (powers journal links, macros, hotbar) ----- */
+
+  /**
+   * Resolve the canonical ambience arrangement id for a theme base.
+   * @param {string} base
+   */
+  ambienceCanonical(base) {
+    const env = soundscapes.emberEnvironment?.arrangements || {};
+    return env[`${base}Day`] ? `${base}Day` : (env[`${base}Night`] ? `${base}Night` : base);
+  },
+
+  /**
+   * Trigger anything by a short reference string. Used by journal `@Maestro[…]`
+   * links, drag-to-hotbar macros, and hand-written macros.
+   *   music:<id> · amb:<base> · weather:<id> · sfx:<path> · preset:<tag> ·
+   *   stop[:<channel>] · or a bare music soundscape id / name.
+   * @param {string} ref
+   */
+  triggerRef(ref) {
+    const s = String(ref ?? "").trim();
+    if (!s) return;
+    const ci = s.indexOf(":");
+    const kind = ci >= 0 ? s.slice(0, ci).toLowerCase() : "";
+    const id = ci >= 0 ? s.slice(ci + 1) : s;
+    switch (kind) {
+      case "preset": return this.triggerPreset(id);
+      case "music": return this.play(id, { channel: "music" });
+      case "amb": case "ambience": case "environment":
+        return this.play("emberEnvironment", { channel: "environment", arrangementId: this.ambienceCanonical(id) });
+      case "weather": return this.play("weather", { channel: "weather", arrangementId: id });
+      case "sfx": return this.playOneShot(id);
+      case "stop": return (id && id !== "all") ? this.stop(id) : this.stopAll();
+      default: {
+        if (soundscapes[s]?.type === "music") return this.play(s, { channel: "music" });
+        const byName = Object.values(soundscapes).find(x => x.type === "music" && musicMeta(x.id).name.toLowerCase() === s.toLowerCase());
+        if (byName) return this.play(byName.id, { channel: "music" });
+        const tag = this.allTags().find(t => t.tag.toLowerCase() === s.toLowerCase());
+        if (tag) return this.triggerPreset(tag.tag);
+        return ui.notifications?.warn(`Maestro: couldn't resolve reference "${ref}".`);
+      }
+    }
+  },
+
+  /** Display {label, icon} for a reference (journal link text, macro name/img). */
+  refMeta(ref) {
+    const s = String(ref ?? "").trim();
+    const ci = s.indexOf(":");
+    const kind = ci >= 0 ? s.slice(0, ci).toLowerCase() : "";
+    const id = ci >= 0 ? s.slice(ci + 1) : s;
+    if (kind === "preset") return { label: id, icon: "fa-solid fa-bolt" };
+    if (kind === "music") return { label: musicMeta(id).name, icon: musicMeta(id).icon };
+    if (kind === "amb" || kind === "ambience" || kind === "environment") { const m = ambienceMeta(this.ambienceCanonical(id)); return { label: m.name, icon: m.icon }; }
+    if (kind === "weather") return { label: WEATHER[id] || prettify(id), icon: "fa-solid fa-cloud-bolt" };
+    if (kind === "sfx") return { label: prettify(decodeURIComponent(id.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "")), icon: "fa-solid fa-volume-high" };
+    if (kind === "stop") return { label: id && id !== "all" ? `Stop ${id}` : "Stop all", icon: "fa-solid fa-circle-stop" };
+    if (soundscapes[s]?.type === "music") return { label: musicMeta(s).name, icon: musicMeta(s).icon };
+    return { label: s, icon: "fa-solid fa-compact-disc" };
+  },
 
   /** Open the pop-out Ambience Morpher (per-track mixer). */
   openMorph() { return MaestroMorphWindow.open(); },
@@ -729,6 +788,25 @@ Hooks.once("init", () => {
   });
   EmberAudioArrangement.FADE_FLOOR = Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0;
 
+  // Journal links: @Maestro[ref]{optional label} → a clickable/draggable cue link.
+  try {
+    const enrichers = CONFIG.TextEditor?.enrichers;
+    if (Array.isArray(enrichers)) enrichers.push({
+      pattern: /@Maestro\[([^\]]+)\](?:\{([^}]+)\})?/g,
+      enricher: m => {
+        const ref = m[1].trim();
+        const meta = Maestro.refMeta(ref);
+        const label = (m[2]?.trim()) || meta.label;
+        const a = document.createElement("a");
+        a.className = "maestro-link content-link";
+        a.dataset.ref = ref;
+        a.draggable = true;
+        a.innerHTML = `<i class="${meta.icon}"></i> ${foundry.utils.escapeHTML(label)}`;
+        return a;
+      }
+    });
+  } catch (e) { console.warn(`${MODULE_ID} | journal enricher skipped:`, e); }
+
   console.log(`${MODULE_ID} | init`);
 });
 
@@ -864,6 +942,43 @@ Hooks.on("updateSetting", setting => {
 // And its HUD re-renders whenever the weather icon updates — a reliable signal
 // for a manual override that might not write a setting we can see.
 Hooks.on("renderCalendarHUD", onCalendarChange);
+
+/* ------------------------------------------------------------------ */
+/*  Cue references — journal link clicks/drags + drag-to-hotbar macros  */
+/* ------------------------------------------------------------------ */
+
+Hooks.once("ready", () => {
+  document.body.addEventListener("click", ev => {
+    const a = ev.target.closest?.("a.maestro-link");
+    if (!a) return;
+    ev.preventDefault(); ev.stopPropagation();
+    Maestro.triggerRef(a.dataset.ref);
+  });
+  document.body.addEventListener("dragstart", ev => {
+    const a = ev.target.closest?.("a.maestro-link");
+    if (!a) return;
+    try { ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "cavril-maestro", ref: a.dataset.ref, label: Maestro.refMeta(a.dataset.ref).label })); } catch (_e) { /* ignore */ }
+  });
+});
+
+// Dropping a Maestro cue (from the Director or a journal link) onto the hotbar
+// creates a one-line macro that triggers it.
+Hooks.on("hotbarDrop", (bar, data, slot) => {
+  if (data?.type !== "cavril-maestro") return;
+  (async () => {
+    try {
+      const meta = Maestro.refMeta(data.ref);
+      const macro = await Macro.create({
+        name: data.label || meta.label || "Maestro",
+        type: "script",
+        img: "icons/svg/sound.svg",
+        command: `Maestro.triggerRef(${JSON.stringify(data.ref)});`
+      });
+      if (macro) await game.user.assignHotbarMacro(macro, slot);
+    } catch (e) { console.warn(`${MODULE_ID} | hotbar macro create failed:`, e); }
+  })();
+  return false;
+});
 
 Hooks.on("getSceneControlButtons", controls => {
   if (!game.user?.isGM) return;

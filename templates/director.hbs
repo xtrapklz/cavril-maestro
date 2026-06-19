@@ -49,7 +49,7 @@
       {{#each musicGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="music" data-id="{{id}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" draggable="true" data-ref="music:{{id}}" data-kind="music" data-id="{{id}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
           <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
           <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
@@ -97,7 +97,7 @@
       {{#each ambienceGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="amb" data-id="{{id}}" data-rename-id="{{renameId}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" draggable="true" data-ref="amb:{{renameId}}" data-kind="amb" data-id="{{id}}" data-rename-id="{{renameId}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
           <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
           <button type="button" class="maestro-rename" data-rename data-tooltip="Rename"><i class="fa-solid fa-pen"></i></button>
@@ -117,7 +117,7 @@
     </div>
     <div class="maestro-scroll layout-{{layout}}">
       {{#each weatherItems}}
-      <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="weather" data-id="{{id}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+      <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" draggable="true" data-ref="weather:{{id}}" data-kind="weather" data-id="{{id}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
         <i class="{{icon}}"></i><span class="nm">{{name}}</span>
         <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
         <button type="button" class="maestro-rename" data-rename data-tooltip="Rename / tag / icon"><i class="fa-solid fa-pen"></i></button>
@@ -147,7 +147,7 @@
       </div>
       {{/each}}
       {{#each soundboard}}
-      <div class="maestro-item {{#if wild}}sb-wild{{/if}}" role="button" tabindex="0" data-kind="sfx" data-id="{{editId}}" data-src="{{src}}" data-srcs="{{srcs}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+      <div class="maestro-item {{#if wild}}sb-wild{{/if}}" role="button" tabindex="0" draggable="true" data-ref="sfx:{{src}}" data-kind="sfx" data-id="{{editId}}" data-src="{{src}}" data-srcs="{{srcs}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
         <i class="{{icon}}"></i><span class="nm">{{name}}</span>
         {{#if wild}}<span class="wild-badge" data-tooltip="{{count}} variations — random each play">{{count}}</span>{{/if}}
         <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
@@ -180,7 +180,7 @@
     <div class="maestro-scroll preset-list">
       {{#each presets}}
       <div class="preset-group">
-        <div class="preset-label"><i class="fa-solid fa-bolt"></i> <span class="nm">{{tag}}</span> <span class="cnt">{{count}}</span></div>
+        <div class="preset-label" draggable="true" data-ref="preset:{{tag}}" data-name="{{tag}}" data-tooltip="Drag to the hotbar to make a macro"><i class="fa-solid fa-bolt"></i> <span class="nm">{{tag}}</span> <span class="cnt">{{count}}</span></div>
         {{#each cats}}
         <div class="preset-cat"><i class="{{icon}}"></i> {{label}}</div>
         <div class="preset-members layout-grid">

@@ -453,6 +453,14 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     onAll(".maestro-item", "keydown", e => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); }
     });
+    // Drag a cue (or a preset label) to the hotbar → a one-line macro (hotbarDrop hook handles it).
+    onAll('[data-ref]', "dragstart", e => {
+      e.stopPropagation();
+      try {
+        e.dataTransfer.setData("text/plain", JSON.stringify({ type: "cavril-maestro", ref: e.currentTarget.dataset.ref, label: e.currentTarget.dataset.name || e.currentTarget.textContent.trim() }));
+        e.dataTransfer.effectAllowed = "copy";
+      } catch (_e) { /* ignore */ }
+    });
 
     // Music controls — variation buttons (replace the dropdown)
     onAll('[data-arrangement]', "click", e => {
