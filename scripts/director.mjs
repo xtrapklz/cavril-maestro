@@ -34,7 +34,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     id: "maestro-director",
     classes: ["maestro-director"],
     window: { title: "Maestro — Music Director", icon: "fa-solid fa-compact-disc", resizable: true },
-    position: { width: 420, height: 640 }
+    position: { width: 500, height: 760 }
   };
 
   static PARTS = { body: { template: `modules/${MODULE_ID}/templates/director.hbs` } };
@@ -76,6 +76,22 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** A cue's icon — custom override if set, else the built-in. */
   #icon(kind, id, fallback) { return Maestro.customIcon?.(kind, id) || fallback; }
+
+  /** Is this cue the one currently playing on its channel? */
+  #isActive(kind, id) {
+    const cfg = Maestro.sound?.getActiveConfiguration?.() ?? {};
+    if (kind === "music") return cfg.music?.soundscapeId === id;
+    if (kind === "amb") return !!cfg.environment?.arrangementId && ambienceBase(cfg.environment.arrangementId) === ambienceBase(id);
+    if (kind === "weather") return cfg.weather?.arrangementId === id;
+    return false;
+  }
+
+  /** Play a cue, or stop its channel if it's already the one playing (click-to-toggle). */
+  #toggleCue(kind, id) {
+    if (kind === "music") this.#isActive("music", id) ? Maestro.fadeOutChannel("music") : Maestro.play(id, { channel: "music" });
+    else if (kind === "amb") this.#isActive("amb", id) ? Maestro.fadeOutChannel("environment") : Maestro.play("emberEnvironment", { channel: "environment", arrangementId: id });
+    else if (kind === "weather") this.#isActive("weather", id) ? Maestro.fadeOutChannel("weather") : Maestro.play("weather", { channel: "weather", arrangementId: id });
+  }
 
   /** The currently-active tab, falling back to Music if its zone is disabled. */
   #activeTab(weatherEnabled, sbEnabled) {
@@ -339,10 +355,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     onAll('[data-preset]', "click", e => Maestro.triggerPreset(e.currentTarget.dataset.preset));
     onAll('.preset-member', "click", e => {
       const { kind, id, src } = e.currentTarget.dataset;
-      if (kind === "music") Maestro.play(id, { channel: "music" });
-      else if (kind === "amb") Maestro.play("emberEnvironment", { channel: "environment", arrangementId: id });
-      else if (kind === "weather") Maestro.play("weather", { channel: "weather", arrangementId: id });
-      else if (kind === "sfx") Maestro.playOneShot(src);
+      if (kind === "sfx") Maestro.playOneShot(src);
+      else { this.#toggleCue(kind, id); this.render(); }
     });
 
     // Rename pencil — blank reverts to the built-in name.
@@ -373,9 +387,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     // Item clicks (the row is the button; the pencil stops propagation).
     onAll(".maestro-item", "click", e => {
       const { kind, id, src, path } = e.currentTarget.dataset;
-      if (kind === "music") Maestro.play(id, { channel: "music" });
-      else if (kind === "amb") Maestro.play("emberEnvironment", { channel: "environment", arrangementId: id });
-      else if (kind === "weather") Maestro.play("weather", { channel: "weather", arrangementId: id });
+      if (kind === "music" || kind === "amb" || kind === "weather") this.#toggleCue(kind, id);  // click playing = stop, click other = switch
       else if (kind === "sbdir") { this.#sbPath = path; this.render(); return; }      // into a sub-folder
       else if (kind === "sfx") {                                                       // play (random variation if wildcard), then back to main board
         const list = (e.currentTarget.dataset.srcs || "").split("|").filter(Boolean);

@@ -3,9 +3,9 @@
   <div class="maestro-warn"><i class="fa-solid fa-circle-info"></i> Start an ambience first, then open the mixer to blend its tracks.</div>
 {{else}}
   <div class="mm-title"><i class="fa-solid fa-wind"></i> {{name}}<button type="button" data-reset data-tooltip="Reset to full mix"><i class="fa-solid fa-rotate-left"></i></button></div>
-  <svg class="mm-svg" viewBox="0 0 300 300">
-    <circle class="mm-ring" cx="150" cy="150" r="116"></circle>
-    <circle class="mm-hub" cx="150" cy="150" r="3"></circle>
+  <svg class="mm-svg" viewBox="0 0 440 360">
+    <circle class="mm-ring" cx="220" cy="172" r="118"></circle>
+    <circle class="mm-hub" cx="220" cy="172" r="3"></circle>
     {{#each tracks}}
     <g class="mm-anchor {{#if muted}}muted{{/if}}" data-id="{{id}}" data-x="{{x}}" data-y="{{y}}">
       <circle class="mm-node" cx="{{x}}" cy="{{y}}" r="15"></circle>
