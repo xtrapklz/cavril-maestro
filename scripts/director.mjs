@@ -242,7 +242,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     });
 
     // Custom music variations saved for the active soundscape.
-    const customVariations = music.soundscapeId ? Maestro.musicVariations(music.soundscapeId).map(v => ({ id: v.id, name: v.name })) : [];
+    const customVariations = music.soundscapeId ? Maestro.musicVariations(music.soundscapeId).map(v => ({ id: v.id, name: v.name, active: v.id === av })) : [];
     const sbAtRoot = !sbEnabled || sbCur === sbRoot;
     const sbFolderName = sbAtRoot ? "" : prettify(decodeURIComponent(sbCur.replace(/\/+$/, "").split("/").pop() || ""));
 
@@ -259,10 +259,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // Active music soundscape — arrangement select + mood.
     const cur = soundscapes[music.soundscapeId];
+    const av = (Maestro.activeVariation && Maestro.activeVariation.soundscapeId === music.soundscapeId) ? Maestro.activeVariation.vid : null;
     const arrangements = cur
       ? Object.entries(cur.arrangements ?? {})
           .filter(([id]) => !isTense(id))                 // tense variants live on the Calm/Tension switch
-          .map(([id, v]) => ({ id, label: v?.label ?? prettify(id), selected: id === music.arrangementId }))
+          .map(([id, v]) => ({ id, label: v?.label ?? prettify(id), selected: id === music.arrangementId && !av }))
       : [];
     const onTension = !!music.arrangementId && isTense(music.arrangementId);
     const phase = Maestro.dayPhase?.() ?? "day";
@@ -447,6 +448,11 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const sid = Maestro.sound?.getActiveConfiguration?.().music?.soundscapeId;
       if (sid) Maestro.playMusicVariation(sid, e.currentTarget.dataset.variation);
     });
+    onAll('[data-variation-edit]', "click", e => {
+      e.stopPropagation();
+      const sid = Maestro.sound?.getActiveConfiguration?.().music?.soundscapeId;
+      if (sid) this.#promptEditVariation(sid, e.currentTarget.dataset.variationEdit);
+    });
     on('[data-add-variation]', "click", () => this.#promptNewVariation());
     on('[data-reroll]', "click", () => Maestro.rearrange("music"));
     on('[data-morph]', "click", () => Maestro.openMorph?.());
@@ -549,20 +555,57 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!cfg.soundscapeId || !info) return ui.notifications?.warn("Maestro: play a music theme first.");
     const DialogV2 = foundry.applications?.api?.DialogV2;
     if (!DialogV2?.prompt) return;
-    const esc = s => String(s ?? "").replace(/"/g, "&quot;");
-    const checks = info.tracks.map(t =>
-      `<label style="display:flex;gap:7px;align-items:center;font-size:12px;padding:2px 0"><input type="checkbox" name="trk" value="${esc(t.id)}" ${t.muted ? "" : "checked"}> ${esc(prettify(t.id))}</label>`
-    ).join("");
-    const res = await DialogV2.prompt({
+    const res = await foundry.applications.api.DialogV2.prompt({
       window: { title: "New variation", icon: "fa-solid fa-plus" },
-      content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Save the checked tracks as a new variation of this theme.</p>`
-             + `<input type="text" name="nm" placeholder="Variation name" style="width:100%;margin-bottom:.5rem">`
-             + `<div style="max-height:240px;overflow:auto;border:1px solid var(--color-border-dark,#1e1e1e);border-radius:4px;padding:6px">${checks}</div>`,
-      ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, enabled: [...btn.form.querySelectorAll('input[name="trk"]:checked')].map(c => c.value) }) },
+      content: `<div class="maestro-vardlg"><p class="hint">Check the tracks to include, name it, and save it as a variation of this theme.</p>`
+             + `<input type="text" name="nm" class="vname" placeholder="Variation name" autocomplete="off">`
+             + `<div class="vlist">${this.#trackChecklist(info.tracks.map(t => ({ id: t.id })), [])}</div></div>`,
+      ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, enabled: this.#checkedTracks(btn.form) }) },
       rejectClose: false
     }).catch(() => null);
     if (!res || !String(res.name || "").trim()) return;
     await Maestro.saveMusicVariation(cfg.soundscapeId, cfg.arrangementId, res.name, res.enabled);
+  }
+
+  /** Build a fixed-row track checklist (stable height so toggling doesn't reflow). */
+  #trackChecklist(tracks, checkedIds) {
+    const esc = s => String(s ?? "").replace(/"/g, "&quot;");
+    const set = new Set(checkedIds || []);
+    return tracks.map(t =>
+      `<label class="vrow"><input type="checkbox" name="trk" value="${esc(t.id)}"${set.has(t.id) ? " checked" : ""}><span>${esc(prettify(t.id))}</span></label>`
+    ).join("");
+  }
+
+  #checkedTracks(form) {
+    return [...form.querySelectorAll('input[name="trk"]:checked')].map(c => c.value);
+  }
+
+  /** Edit or delete a saved custom variation. */
+  async #promptEditVariation(soundscapeId, vid) {
+    const v = (Maestro.musicVariations?.(soundscapeId) || []).find(x => x.id === vid);
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!v || !DialogV2?.wait) return;
+    const esc = s => String(s ?? "").replace(/"/g, "&quot;");
+    const ids = Object.keys(soundscapes[soundscapeId]?.arrangements?.[v.base]?.layers || {});
+    const content = `<div class="maestro-vardlg"><p class="hint">Edit which tracks are in “${esc(v.name)}”, rename it, or delete it.</p>`
+                  + `<input type="text" name="nm" class="vname" value="${esc(v.name)}" autocomplete="off">`
+                  + `<div class="vlist">${this.#trackChecklist(ids.map(id => ({ id })), v.enabled)}</div></div>`;
+    const res = await DialogV2.wait({
+      window: { title: `Edit variation — ${v.name}`, icon: "fa-solid fa-sliders" },
+      content,
+      buttons: [
+        { action: "save", label: "Save", icon: "fa-solid fa-check", default: true, callback: (_e, btn) => ({ op: "save", name: btn.form.elements.nm.value, enabled: this.#checkedTracks(btn.form) }) },
+        { action: "delete", label: "Delete", icon: "fa-solid fa-trash", callback: () => ({ op: "delete" }) },
+        { action: "cancel", label: "Cancel", icon: "fa-solid fa-xmark" }
+      ],
+      rejectClose: false
+    }).catch(() => null);
+    if (!res || typeof res !== "object" || !res.op) return;
+    if (res.op === "delete") await Maestro.deleteMusicVariation(soundscapeId, vid);
+    else if (res.op === "save" && String(res.name || "").trim()) {
+      await Maestro.deleteMusicVariation(soundscapeId, vid);                 // replace (name/id may change)
+      await Maestro.saveMusicVariation(soundscapeId, v.base, res.name, res.enabled);
+    }
   }
 
   /** Rename a member within a preset (alias scoped to that preset only). */

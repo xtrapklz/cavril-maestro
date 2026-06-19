@@ -40,7 +40,7 @@
     </div>
     <div class="maestro-controls">
       {{#each arrangements}}<button type="button" class="var-btn {{#if selected}}active{{/if}}" data-arrangement="{{id}}">{{label}}</button>{{/each}}
-      {{#each customVariations}}<button type="button" class="var-btn custom" data-variation="{{id}}" data-tooltip="Custom variation"><i class="fa-solid fa-sliders"></i> {{name}}</button>{{/each}}
+      {{#each customVariations}}<span class="var-group"><button type="button" class="var-btn custom {{#if active}}active{{/if}}" data-variation="{{id}}" data-tooltip="Custom variation"><i class="fa-solid fa-sliders"></i> {{name}}</button><button type="button" class="var-edit" data-variation-edit="{{id}}" data-tooltip="Edit / delete variation"><i class="fa-solid fa-pen"></i></button></span>{{/each}}
       <button type="button" class="var-btn icon" data-add-variation data-tooltip="Save a new variation from the current tracks" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-plus"></i></button>
       <button type="button" class="var-btn icon" data-reroll data-tooltip="Re-roll layers" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
       <button type="button" class="var-btn icon" data-stop="music" data-tooltip="Stop music" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-stop"></i></button>

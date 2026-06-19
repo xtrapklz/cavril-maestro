@@ -115,7 +115,19 @@
 .maestro-director .preset-label .cnt { font-size: 10px; opacity: .6; font-weight: 400; }
 .maestro-director .preset-cat { font-size: 9px; text-transform: uppercase; letter-spacing: .05em; opacity: .55; padding: 6px 2px 4px; display: flex; align-items: center; gap: 5px; }
 .maestro-director .preset-members.layout-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); grid-auto-rows: 60px; gap: 6px; }
-.maestro-director .var-btn.custom { border-style: dashed; }
+/* Custom variation = play pill + edit pencil, joined */
+.maestro-director .var-group { display: inline-flex; flex: 0 1 auto; }
+.maestro-director .var-btn.custom { border-style: dashed; border-radius: 6px 0 0 6px; }
+.maestro-director .var-edit { width: 24px; height: 28px; flex: 0 0 auto; cursor: pointer; border: 1px solid var(--color-border-dark, #1e1e1e); border-left: 0; border-radius: 0 6px 6px 0; background: rgba(0,0,0,0.2); opacity: .7; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; }
+.maestro-director .var-edit:hover { opacity: 1; background: rgba(255,255,255,0.12); }
+
+/* New/Edit variation dialog — fixed-row checklist so toggling never reflows */
+.maestro-vardlg .hint { margin: .2rem 0 .55rem; opacity: .75; font-size: 12px; }
+.maestro-vardlg .vname { width: 100%; margin-bottom: .55rem; }
+.maestro-vardlg .vlist { max-height: 280px; overflow-y: auto; border: 1px solid var(--color-border-dark, #1e1e1e); border-radius: 4px; padding: 4px 8px; }
+.maestro-vardlg .vrow { display: flex; align-items: center; gap: 8px; height: 26px; min-height: 26px; margin: 0; font-size: 12px; cursor: pointer; }
+.maestro-vardlg .vrow input[type="checkbox"] { flex: 0 0 auto; width: 14px; height: 14px; margin: 0; }
+.maestro-vardlg .vrow span { line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Favorites drag-to-reorder */
 .maestro-director .maestro-zone[data-zone="fav"] .maestro-item { cursor: grab; }

@@ -40,6 +40,8 @@ globalThis.Maestro = {
   _pathsResolved: false,
   /** @type {Set<foundry.audio.Sound>} live soundboard one-shots (for Stop all) */
   _oneShots: new Set(),
+  /** @type {null|{soundscapeId:string,vid:string}} the custom music variation currently selected (UI highlight) */
+  activeVariation: null,
 
   CONST: {
     PLAYLIST_NAME: "Maestro Channels",
@@ -196,6 +198,7 @@ globalThis.Maestro = {
     if (!game.user.isGM) return ui.notifications?.warn("Maestro: only a GM can direct music.");
     const ss = soundscapes[soundscapeId];
     if (!ss) return ui.notifications?.warn(`Maestro: unknown soundscape "${soundscapeId}".`);
+    if (channel === "music") this.activeVariation = null;   // a normal play clears any custom-variation highlight
     arrangementId ??= Object.keys(ss.arrangements ?? {})[0];
     // Auto day/night: prefer the variant matching the in-world time of day.
     if ((channel === "music" || channel === "environment") && game.settings.get(MODULE_ID, "autoDayNight")) {
@@ -500,12 +503,14 @@ globalThis.Maestro = {
     if (!game.user.isGM) return;
     const v = this.musicVariations(soundscapeId).find(x => x.id === vid);
     if (!v) return;
-    await this.play(soundscapeId, { channel: "music", arrangementId: v.base });
+    await this.play(soundscapeId, { channel: "music", arrangementId: v.base });   // clears activeVariation
     const arr = soundscapes[soundscapeId]?.arrangements?.[v.base];
     const factors = {};
     for (const id of Object.keys(arr?.layers || {})) factors[id] = v.enabled.includes(id) ? 1 : 0;
     MaestroMixer.setMix("music", `${soundscapeId}:${v.base}`, factors);   // reapply tick lands it once layers come up
     MaestroMixer.broadcast("music");
+    this.activeVariation = { soundscapeId, vid };                          // highlight this variation
+    MaestroDirector.refresh();
   },
 
   /* ----- Preset-specific member order + aliases ----- */
