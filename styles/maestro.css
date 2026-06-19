@@ -86,25 +86,32 @@
 /* ---- Ambience Morpher (pop-out window) ---- */
 .maestro-morph .window-content { padding: 0; }
 .maestro-morph-body { display: flex; flex-direction: column; padding: 8px; gap: 4px; }
-.maestro-morph .mm-title { font-size: 13px; font-weight: 700; opacity: .9; display: flex; align-items: center; gap: 6px; padding: 2px; }
-.maestro-morph .mm-title button { margin-left: auto; width: 26px; height: 24px; flex: 0 0 auto; }
-.maestro-morph .mm-svg { width: 100%; height: auto; touch-action: none; user-select: none; display: block; overflow: visible; }
-.maestro-morph .mm-ring { fill: rgba(0,0,0,.18); stroke: var(--color-border-light-tertiary, #4b4a44); stroke-width: 1.5; }
-.maestro-morph .mm-hub { fill: rgba(255,255,255,.25); }
-.maestro-morph .mm-anchor { cursor: pointer; }
-.maestro-morph .mm-node { fill: #4a5160; stroke: rgba(0,0,0,.45); stroke-width: 1.5; transition: fill .12s; }
-.maestro-morph .mm-anchor:hover .mm-node { fill: #5d6678; }
-.maestro-morph .mm-anchor.muted .mm-node { fill: transparent; stroke: #7a8194; stroke-dasharray: 3 2; }
-.maestro-morph .mm-ico { pointer-events: none; }
-.maestro-morph .mm-ico div { display: flex; align-items: center; justify-content: center; height: 22px; color: #e8e8ea; font-size: 12px; }
-.maestro-morph .mm-anchor.muted .mm-ico div { opacity: .4; }
+.mm-title { font-size: 13px; font-weight: 700; opacity: .9; display: flex; align-items: center; gap: 6px; padding: 2px; }
+.mm-title button { margin-left: auto; width: 26px; height: 24px; flex: 0 0 auto; }
+.mm-svg { width: 100%; height: auto; touch-action: none; user-select: none; display: block; overflow: visible; }
+.mm-ring { fill: rgba(0,0,0,.18); stroke: var(--color-border-light-tertiary, #4b4a44); stroke-width: 1.5; }
+.mm-hub { fill: rgba(255,255,255,.25); }
+.mm-anchor { cursor: pointer; }
+.mm-node { fill: #4a5160; stroke: rgba(0,0,0,.45); stroke-width: 1.5; transition: fill .12s; }
+.mm-anchor:hover .mm-node { fill: #5d6678; }
+.mm-anchor.muted .mm-node { fill: transparent; stroke: #7a8194; stroke-dasharray: 3 2; }
+.mm-ico { pointer-events: none; }
+.mm-ico div { display: flex; align-items: center; justify-content: center; height: 22px; color: #e8e8ea; font-size: 12px; }
+.mm-anchor.muted .mm-ico div { opacity: .4; }
 /* Track labels show only on hover (keeps dense circles uncluttered) */
-.maestro-morph .mm-label { fill: #f0f2f6; font-size: 10px; paint-order: stroke; stroke: rgba(0,0,0,.85); stroke-width: 3px; pointer-events: none; opacity: 0; transition: opacity .1s; }
-.maestro-morph .mm-anchor:hover .mm-label { opacity: 1; }
-.maestro-morph .mm-anchor.muted:hover .mm-label { opacity: .6; }
-.maestro-morph .mm-puck { fill: var(--color-shadow-primary, #ff6400); stroke: #fff; stroke-width: 2; cursor: grab; filter: drop-shadow(0 0 4px rgba(0,0,0,.5)); }
-.maestro-morph .mm-hint { font-size: 10px; opacity: .5; text-align: center; }
+.mm-label { fill: #f0f2f6; font-size: 10px; paint-order: stroke; stroke: rgba(0,0,0,.85); stroke-width: 3px; pointer-events: none; opacity: 0; transition: opacity .1s; }
+.mm-anchor:hover .mm-label { opacity: 1; }
+.mm-anchor.muted:hover .mm-label { opacity: .6; }
+.mm-puck { fill: var(--color-shadow-primary, #ff6400); stroke: #fff; stroke-width: 2; cursor: grab; filter: drop-shadow(0 0 4px rgba(0,0,0,.5)); }
+.mm-hint { font-size: 10px; opacity: .5; text-align: center; }
 .maestro-morph .maestro-warn { background: #5a1d1d; color: #ffe9e9; padding: 6px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+
+/* Inline ambience morpher embedded in the Director (minimizable) */
+.maestro-director .mini-morph { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px 0 4px; }
+.maestro-director .mini-morph .mm-tools { display: flex; gap: 6px; align-self: flex-end; }
+.maestro-director .mini-morph .mm-tools button { width: 26px; height: 24px; flex: 0 0 auto; }
+.maestro-director .mini-morph .mm-svg { width: 100%; max-width: 330px; }
+.maestro-director [data-morph-toggle].active { background: var(--color-shadow-primary, #ff6400); color: #fff; }
 
 /* Wildcard soundboard tile badge (random-variation count) */
 .maestro-director .layout-grid .maestro-item.sb-wild { border-style: dashed; }

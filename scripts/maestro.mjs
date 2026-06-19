@@ -597,6 +597,8 @@ Hooks.once("init", () => {
   });
   // Per-user manual order of favorites (array of "kind:id" keys).
   game.settings.register(MODULE_ID, "favOrder", { scope: "client", config: false, type: Array, default: [], onChange: () => MaestroDirector.refresh() });
+  // Inline ambience morpher minimized inside the Director (per user).
+  game.settings.register(MODULE_ID, "morphCollapsed", { scope: "client", config: false, type: Boolean, default: true });
 
   // Soundboard one-shot volume (used by playOneShot).
   game.settings.register(MODULE_ID, "sfxVolume", {

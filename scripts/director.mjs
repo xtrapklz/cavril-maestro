@@ -308,6 +308,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       // Ambience transport
       hasAmb: !!env.arrangementId,
       nowAmb: env.arrangementId ? (this.#cn("amb", curBase) || ambienceMeta(env.arrangementId).name) : "—",
+      morphCollapsed: !!game.settings.get(MODULE_ID, "morphCollapsed"),
+      ambMorph: env.arrangementId && !game.settings.get(MODULE_ID, "morphCollapsed") ? MaestroMixer.view("environment") : null,
       // Weather transport
       hasWeather: !!weather.arrangementId,
       nowWeather: weather.arrangementId ? (this.#cn("weather", weather.arrangementId) || WEATHER[weather.arrangementId] || prettify(weather.arrangementId)) : "—",
@@ -474,6 +476,10 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     on('[data-add-variation]', "click", () => this.#promptNewVariation());
     on('[data-reroll]', "click", () => Maestro.rearrange("music"));
     on('[data-morph]', "click", () => Maestro.openMorph?.());
+    on('[data-morph-toggle]', "click", async () => { await game.settings.set(MODULE_ID, "morphCollapsed", !game.settings.get(MODULE_ID, "morphCollapsed")); this.render(); });
+    // Inline ambience morpher — wire the embedded pad (shared with the pop-out).
+    const inlineMorph = el.querySelector('.mini-morph[data-channel="environment"]');
+    if (inlineMorph) MaestroMixer.wire(inlineMorph, "environment", () => this.render());
 
     // Stops — fade out at the crossfade pace (the eventual stop re-renders via onChange).
     onAll('[data-stop]', "click", e => { Maestro.fadeOutChannel(e.currentTarget.dataset.stop); });

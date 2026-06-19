@@ -22,13 +22,17 @@
  */
 
 import { soundscapes } from "./soundscapes.mjs";
-import { trackZoneIndex } from "./meta.mjs";
+import { trackZoneIndex, trackIcon, prettify, ambienceMeta } from "./meta.mjs";
 
 const MODULE_ID = "cavril-maestro";
 export const SOCKET = `module.${MODULE_ID}`;
 
 /** Which engine channel backs each Director tab. */
 export const CHANNEL_FOR_TAB = { music: "music", amb: "environment" };
+
+/** Shared morpher geometry (viewBox units). Both the pop-out window and the
+ * inline Director morpher use it; the inline one is just CSS-sized smaller. */
+export const GEOM = { CX: 220, CY: 172, R: 118, VBW: 440, VBH: 360, GAP: 13 };
 
 const angDist = (a, b) => { let d = Math.abs(a - b) % (2 * Math.PI); return d > Math.PI ? (2 * Math.PI) - d : d; };
 
@@ -99,6 +103,65 @@ export const MaestroMixer = {
    * count-adaptive: the edge isolates 1–2 tracks no matter how many stems a theme
    * has, and away-tracks level down as the puck moves outward.
    */
+  /** Build the morpher view (anchor positions, labels, icons) for a channel, or null. */
+  view(channel) {
+    const info = this.tracksFor(channel);
+    if (!info) return null;
+    const { CX, CY, R, GAP } = GEOM;
+    const tracks = info.tracks.map(t => {
+      const x = CX + R * Math.cos(t.angle), y = CY + R * Math.sin(t.angle);
+      const lx = CX + (R + GAP) * Math.cos(t.angle), ly = CY + (R + GAP) * Math.sin(t.angle);
+      const c = Math.cos(t.angle);
+      return {
+        id: t.id, label: prettify(t.id), icon: trackIcon(t.id), muted: t.muted,
+        x: +x.toFixed(1), y: +y.toFixed(1), ix: +(x - 11).toFixed(1), iy: +(y - 11).toFixed(1),
+        lx: +lx.toFixed(1), ly: +(ly + 3).toFixed(1), anchor: c < -0.3 ? "end" : (c > 0.3 ? "start" : "middle")
+      };
+    });
+    return { name: ambienceMeta(info.arrangementId).name, tracks, puckX: CX, puckY: CY };
+  },
+
+  /** Wire pointer interaction (puck drag, node mute/reorder, reset, shuffle) onto an .mm-svg inside rootEl. */
+  wire(rootEl, channel, rerender) {
+    const { CX, CY, R, VBW, VBH } = GEOM;
+    const svg = rootEl.querySelector(".mm-svg");
+    const puck = svg?.querySelector(".mm-puck");
+    if (!svg || !puck) return;
+    const toSvg = ev => { const r = svg.getBoundingClientRect(); return { x: (ev.clientX - r.left) / r.width * VBW, y: (ev.clientY - r.top) / r.height * VBH }; };
+    const clamp = (x, y) => { const dx = x - CX, dy = y - CY, d = Math.hypot(dx, dy); return d <= R ? { x, y } : { x: CX + dx / d * R, y: CY + dy / d * R }; };
+    let dragging = false, bc = null;
+    const update = (x, y) => {
+      puck.setAttribute("cx", x.toFixed(1)); puck.setAttribute("cy", y.toFixed(1));
+      const pr = Math.min(1, Math.hypot(x - CX, y - CY) / R), pa = Math.atan2(y - CY, x - CX);
+      this.applyMix(channel, pr, pa);
+      clearTimeout(bc); bc = setTimeout(() => this.broadcast(channel), 120);
+    };
+    const onMove = ev => { if (dragging) { const p = clamp(...Object.values(toSvg(ev))); update(p.x, p.y); } };
+    const onUp = () => { dragging = false; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); this.broadcast(channel); };
+    svg.addEventListener("pointerdown", ev => {
+      const g = ev.target.closest?.(".mm-anchor");
+      if (g) {                                  // node: click = mute, drag = reorder
+        ev.stopPropagation();
+        const id = g.dataset.id, x0 = +g.dataset.x, y0 = +g.dataset.y, start = toSvg(ev);
+        let moved = false;
+        const aMove = e2 => { const p = toSvg(e2); if (!moved && Math.hypot(p.x - start.x, p.y - start.y) > 6) moved = true; if (moved) g.setAttribute("transform", `translate(${(p.x - x0).toFixed(1)},${(p.y - y0).toFixed(1)})`); };
+        const aUp = e2 => {
+          window.removeEventListener("pointermove", aMove); window.removeEventListener("pointerup", aUp);
+          if (!moved) { this.toggleMute(channel, id).then(rerender); return; }
+          const p = toSvg(e2);
+          this.reorderTrack(channel, id, Math.atan2(p.y - CY, p.x - CX)).then(rerender);
+        };
+        window.addEventListener("pointermove", aMove); window.addEventListener("pointerup", aUp);
+        return;
+      }
+      dragging = true; const s = toSvg(ev), p = clamp(s.x, s.y); update(p.x, p.y);
+      window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
+    });
+    rootEl.querySelector("[data-reset]")?.addEventListener("click", () => { this.reset(channel); puck.setAttribute("cx", CX); puck.setAttribute("cy", CY); });
+    rootEl.querySelector("[data-shuffle]")?.addEventListener("click", () => this.shuffleOrder(channel).then(rerender));
+  },
+
+  /** Per-track volume factors for a puck at normalized radius `pr` (0..1), angle `pa`. */
   factors(channel, pr, pa) {
     const info = this.tracksFor(channel);
     if (!info) return null;
