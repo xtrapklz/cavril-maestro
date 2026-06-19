@@ -83,6 +83,17 @@
 .maestro-director .var-btn.active { background: var(--color-shadow-primary, #ff6400); color: #fff; opacity: 1; border-color: var(--color-shadow-primary, #ff6400); }
 .maestro-director .var-btn.icon { width: 30px; padding: 0; flex: 0 0 auto; }
 
+/* Embedded per-track morpher (mini radial mixer) */
+.maestro-director .mini-morph { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 0 3px; }
+.maestro-director .mm-svg { width: 166px; height: 166px; max-width: 100%; touch-action: none; user-select: none; display: block; }
+.maestro-director .mm-ring { fill: rgba(0,0,0,.18); stroke: var(--color-border-light-tertiary, #4b4a44); stroke-width: 1.5; }
+.maestro-director .mm-hub { fill: rgba(255,255,255,.25); }
+.maestro-director .mm-anchor { fill: #6b7280; stroke: rgba(0,0,0,.45); stroke-width: 1; cursor: pointer; transition: fill .12s; }
+.maestro-director .mm-anchor:hover { fill: #9aa0ad; }
+.maestro-director .mm-anchor.muted { fill: transparent; stroke: #7a8194; stroke-dasharray: 2 2; }
+.maestro-director .mm-puck { fill: var(--color-shadow-primary, #ff6400); stroke: #fff; stroke-width: 2; cursor: grab; filter: drop-shadow(0 0 4px rgba(0,0,0,.5)); }
+.maestro-director .mm-hint { font-size: 9px; opacity: .5; text-align: center; }
+
 /* Scrolling list */
 .maestro-director .maestro-scroll {
   flex: 1;

@@ -42,6 +42,19 @@
       <button type="button" class="var-btn icon" data-reroll data-tooltip="Re-roll layers" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-shuffle"></i></button>
       <button type="button" class="var-btn icon" data-stop="music" data-tooltip="Stop music" {{#unless hasMusic}}disabled{{/unless}}><i class="fa-solid fa-stop"></i></button>
     </div>
+    {{#if musicMorph}}
+    <div class="mini-morph" data-channel="music">
+      <svg class="mm-svg" viewBox="0 0 200 200">
+        <circle class="mm-ring" cx="100" cy="100" r="78"></circle>
+        <circle class="mm-hub" cx="100" cy="100" r="3"></circle>
+        {{#each musicMorph.tracks}}
+        <circle class="mm-anchor {{#if muted}}muted{{/if}}" data-id="{{id}}" cx="{{x}}" cy="{{y}}" r="6"><title>{{label}}{{#if muted}} — muted{{/if}}</title></circle>
+        {{/each}}
+        <circle class="mm-puck" cx="{{musicMorph.puckX}}" cy="{{musicMorph.puckY}}" r="9"></circle>
+      </svg>
+      <div class="mm-hint">Centre = full mix · edge = solo · dot = mute</div>
+    </div>
+    {{/if}}
     <div class="maestro-scroll layout-{{layout}}">
       {{#each musicGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
@@ -62,6 +75,19 @@
       <span class="np" data-tooltip="Now playing (ambience)"><i class="fa-solid fa-wind"></i> {{nowAmb}}</span>
       <button type="button" data-stop="environment" data-tooltip="Stop ambience" {{#unless hasAmb}}disabled{{/unless}}><i class="fa-solid fa-stop"></i></button>
     </div>
+    {{#if ambMorph}}
+    <div class="mini-morph" data-channel="environment">
+      <svg class="mm-svg" viewBox="0 0 200 200">
+        <circle class="mm-ring" cx="100" cy="100" r="78"></circle>
+        <circle class="mm-hub" cx="100" cy="100" r="3"></circle>
+        {{#each ambMorph.tracks}}
+        <circle class="mm-anchor {{#if muted}}muted{{/if}}" data-id="{{id}}" cx="{{x}}" cy="{{y}}" r="6"><title>{{label}}{{#if muted}} — muted{{/if}}</title></circle>
+        {{/each}}
+        <circle class="mm-puck" cx="{{ambMorph.puckX}}" cy="{{ambMorph.puckY}}" r="9"></circle>
+      </svg>
+      <div class="mm-hint">Centre = full mix · edge = solo · dot = mute</div>
+    </div>
+    {{/if}}
     <div class="maestro-scroll layout-{{layout}}">
       {{#each ambienceGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>

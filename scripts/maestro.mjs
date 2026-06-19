@@ -20,6 +20,7 @@ import { EmberSoundscape, EmberAudioArrangement } from "./engine.mjs";
 import { soundscapes } from "./soundscapes.mjs";
 import { MaestroDirector } from "./director.mjs";
 import { MaestroCombat } from "./combat.mjs";
+import { MaestroMixer, SOCKET } from "./mixer.mjs";
 import { dayNightVariant, prettify } from "./meta.mjs";
 
 const MODULE_ID = "cavril-maestro";
@@ -423,6 +424,13 @@ Hooks.once("init", () => {
     default: 0.8
   });
 
+  // Morpher: one-time waveform analysis cache (src → percussiveness 0..1).
+  game.settings.register(MODULE_ID, "trackAnalysis", { scope: "world", config: false, type: Object, default: {} });
+  // Morpher: muted tracks per theme ({ "soundscape:arrangement": { trackId: true } }).
+  game.settings.register(MODULE_ID, "trackMute", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
+  // Morpher: custom track order around the circle per theme (client).
+  game.settings.register(MODULE_ID, "trackOrder", { scope: "client", config: false, type: Object, default: {} });
+
   // Auto-pick (and switch) day/night arrangement variants from the calendar.
   game.settings.register(MODULE_ID, "autoDayNight", {
     name: "Auto Day/Night Variants",
@@ -602,6 +610,11 @@ Hooks.once("ready", async () => {
 
     // Follow the calendar's current weather (if Mini Calendar is present).
     try { Maestro.syncWeatherFromCalendar(); } catch (e) { console.warn(`${MODULE_ID} | initial weather sync skipped:`, e); }
+
+    // Per-track morpher: apply mixes pushed by the GM, and keep the mix alive
+    // across generative re-rolls with a light re-apply tick.
+    try { game.socket.on(SOCKET, data => { try { MaestroMixer.onSocket(data); } catch (e) { console.warn(`${MODULE_ID} | mix socket skipped:`, e); } }); } catch (_e) { /* ignore */ }
+    setInterval(() => { try { MaestroMixer.reapply("music"); MaestroMixer.reapply("environment"); } catch (_e) { /* ignore */ } }, 1500);
 
     // Stage-1 control surface: reuse the lifted Playlists-sidebar selector
     // (soundscape + mood + environment pickers). Replaced by a dedicated

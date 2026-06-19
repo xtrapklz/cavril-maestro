@@ -12,6 +12,7 @@ import {
   CATEGORIES, WEATHER, prettify, musicMeta, hasTension, moodVariant,
   ambienceBase, ambienceMeta
 } from "./meta.mjs";
+import { MaestroMixer } from "./mixer.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 const MODULE_ID = "cavril-maestro";
@@ -47,6 +48,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
   #sbCache = new Map();      // path → { dirs, files }
   #sbBusy = false;
   #sbRootSeen = null;        // detect a changed root path → reset cache + nav
+  #mixBusy = false;          // a waveform-analysis batch is running
 
   /* ----- singleton ----- */
   static #instance = null;
@@ -69,6 +71,31 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Whether a cue is favorited. */
   #fav(kind, id) { return !!Maestro.isFavorite?.(kind, id); }
+
+  /** Build the radial morpher view for a channel (anchors placed on a circle), or null. */
+  #morphView(channel) {
+    const info = MaestroMixer.tracksFor?.(channel);
+    if (!info || !info.tracks.length) return null;
+    const CX = 100, CY = 100, R = 78;
+    const tracks = info.tracks.map(t => ({
+      id: t.id, label: prettify(t.id), muted: t.muted,
+      x: +(CX + R * Math.cos(t.angle)).toFixed(1),
+      y: +(CY + R * Math.sin(t.angle)).toFixed(1)
+    }));
+    return { tracks, puckX: CX, puckY: CY };
+  }
+
+  /** Lazily run (cached) waveform analysis for a channel's tracks, then re-render. */
+  #maybeAnalyze(channel) {
+    if (!game.user?.isGM || this.#mixBusy) return;
+    const info = MaestroMixer.tracksFor?.(channel);
+    if (!info || !info.tracks.some(t => t.src && !Number.isFinite(t.feature))) return;
+    this.#mixBusy = true;
+    MaestroMixer.analyzeTracks(channel)
+      .then(changed => { if (changed && this.rendered) this.render(); })
+      .catch(() => {})
+      .finally(() => { this.#mixBusy = false; });
+  }
 
   /** The currently-active tab, falling back to Music if its zone is disabled. */
   #activeTab(weatherEnabled, sbEnabled) {
@@ -195,6 +222,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       tabMusic: tab === "music", tabAmb: tab === "amb", tabWeather: tab === "weather", tabSfx: tab === "sfx", tabFav: tab === "fav",
       counts,
       musicGroups, ambienceGroups, weatherItems, soundboard, sbDirs, favoriteGroups,
+      // Per-track morphers (one per category, by active theme)
+      musicMorph: this.#morphView("music"),
+      ambMorph: this.#morphView("environment"),
       // Music transport
       hasMusic: !!music.soundscapeId,
       nowMusic: music.soundscapeId ? (this.#cn("music", music.soundscapeId) || musicMeta(music.soundscapeId).name) : "—",
@@ -241,6 +271,34 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
 
+    // Per-track morpher — (cached) timbre analysis + wire each embedded pad.
+    this.#maybeAnalyze("music");
+    this.#maybeAnalyze("environment");
+    el.querySelectorAll(".mini-morph").forEach(box => {
+      const channel = box.dataset.channel;
+      const svg = box.querySelector(".mm-svg");
+      const puck = svg?.querySelector(".mm-puck");
+      if (!svg || !puck) return;
+      const CX = 100, CY = 100, R = 78;
+      const toSvg = ev => { const r = svg.getBoundingClientRect(); return { x: (ev.clientX - r.left) / r.width * 200, y: (ev.clientY - r.top) / r.height * 200 }; };
+      const clamp = (x, y) => { const dx = x - CX, dy = y - CY, d = Math.hypot(dx, dy); return d <= R ? { x, y } : { x: CX + dx / d * R, y: CY + dy / d * R }; };
+      let dragging = false, bc = null;
+      const update = (x, y) => {
+        puck.setAttribute("cx", x.toFixed(1)); puck.setAttribute("cy", y.toFixed(1));
+        const pr = Math.min(1, Math.hypot(x - CX, y - CY) / R), pa = Math.atan2(y - CY, x - CX);
+        MaestroMixer.applyMix(channel, pr, pa);
+        clearTimeout(bc); bc = setTimeout(() => MaestroMixer.broadcast(channel), 120);
+      };
+      const onMove = ev => { if (dragging) { const p = clamp(...Object.values(toSvg(ev))); update(p.x, p.y); } };
+      const onUp = () => { dragging = false; window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); MaestroMixer.broadcast(channel); };
+      svg.addEventListener("pointerdown", ev => {
+        const anchor = ev.target.closest?.(".mm-anchor");
+        if (anchor) { ev.stopPropagation(); MaestroMixer.toggleMute(channel, anchor.dataset.id); return; }   // dot = mute toggle
+        dragging = true; const s = toSvg(ev), p = clamp(s.x, s.y); update(p.x, p.y);
+        window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
+      });
+    });
+
     // Live search filter (scoped to the active zone, no re-render).
     const applyFilter = () => {
       const q = (el.querySelector('[name="search"]')?.value ?? "").trim().toLowerCase();
@@ -263,6 +321,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       this.#tab = e.currentTarget.dataset.tab;
       el.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle("active", b.dataset.tab === this.#tab));
       el.querySelectorAll(".maestro-zone").forEach(z => z.classList.toggle("active", z.dataset.zone === this.#tab));
+      if (this.#tab === "music") this.#maybeAnalyze("music");
+      else if (this.#tab === "amb") this.#maybeAnalyze("environment");
       applyFilter();
     });
 
