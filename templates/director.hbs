@@ -157,7 +157,7 @@
         <div class="preset-cat"><i class="{{icon}}"></i> {{label}}</div>
         <div class="preset-members layout-grid">
           {{#each items}}
-          <div class="maestro-item" role="button" tabindex="0" draggable="true" data-preset-member data-tag="{{tag}}" data-key="{{key}}" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-cat="{{cat}}" data-name="{{name}}">
+          <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" draggable="true" data-preset-member data-tag="{{tag}}" data-key="{{key}}" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-cat="{{cat}}" data-name="{{name}}">
             <i class="{{icon}}"></i><span class="nm">{{name}}</span>
             <button type="button" class="maestro-rename" data-preset-rename data-tooltip="Rename in this preset"><i class="fa-solid fa-pen"></i></button>
           </div>

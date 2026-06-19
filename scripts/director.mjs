@@ -9,7 +9,7 @@
 
 import { soundscapes } from "./soundscapes.mjs";
 import {
-  CATEGORIES, WEATHER, prettify, musicMeta, hasTension, moodVariant,
+  CATEGORIES, WEATHER, prettify, musicMeta, hasTension, isTense, moodVariant,
   ambienceBase, ambienceMeta
 } from "./meta.mjs";
 import { MaestroMixer } from "./mixer.mjs";
@@ -228,7 +228,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const presets = Object.keys(byTag).sort((a, b) => a.localeCompare(b)).map(tag => {
       const meta = Maestro.presetMeta?.(tag) ?? { order: [], aliases: {} };
       const ord = k => { const i = meta.order.indexOf(k); return i < 0 ? 1e6 : i; };
-      const members = byTag[tag].map(m => ({ ...m, tag, name: meta.aliases[m.key] || m.baseName }));
+      const members = byTag[tag].map(m => ({ ...m, tag, name: meta.aliases[m.key] || m.baseName, active: m.kind !== "sfx" && this.#isActive(m.kind, m.id) }));
       const cats = Object.keys(CATEGORIES).filter(k => members.some(m => m.cat === k)).map(k => ({
         cat: k, label: CATEGORIES[k].label, icon: CATEGORIES[k].icon,
         items: members.filter(m => m.cat === k).sort((a, b) => ord(a.key) - ord(b.key) || a.name.localeCompare(b.name))
@@ -256,10 +256,10 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const cur = soundscapes[music.soundscapeId];
     const arrangements = cur
       ? Object.entries(cur.arrangements ?? {})
-          .filter(([id]) => !/tension/i.test(id))
+          .filter(([id]) => !isTense(id))                 // tense variants live on the Calm/Tension switch
           .map(([id, v]) => ({ id, label: v?.label ?? prettify(id), selected: id === music.arrangementId }))
       : [];
-    const onTension = !!music.arrangementId && /tension/i.test(music.arrangementId);
+    const onTension = !!music.arrangementId && isTense(music.arrangementId);
     const phase = Maestro.dayPhase?.() ?? "day";
 
     return {

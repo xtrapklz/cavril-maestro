@@ -245,9 +245,13 @@ export function musicMeta(id = "") {
   return MUSIC[id] ?? { name: prettify(id), cat: "theme", icon: CATEGORIES.theme.icon };
 }
 
-/** True if the soundscape has any tension-flavoured arrangement. */
+/** True if an arrangement id reads as the tense/intense version. */
+export function isTense(id = "") { return /tens/i.test(id); }   // matches "tension" and "intense"
+
+/** True if the soundscape has BOTH a tense and a calm arrangement (so the switch can toggle). */
 export function hasTension(ss) {
-  return Object.keys(ss?.arrangements ?? {}).some(id => /tension/i.test(id));
+  const ids = Object.keys(ss?.arrangements ?? {});
+  return ids.some(isTense) && ids.some(id => !isTense(id));
 }
 
 /** Which time-of-day phase an arrangement id is flavoured for, or null if neutral. */
@@ -284,13 +288,16 @@ export function dayNightVariant(ss, curArrId, phase) {
 export function moodVariant(ss, curArrId, mood) {
   const ids = Object.keys(ss?.arrangements ?? {});
   if (!ids.length) return null;
-  const isTen = id => /tension/i.test(id);
-  const base = id => id.replace(/(calm|tension|day|night|dawn|dusk)$/i, "");
-  const b = base(curArrId || ids[0]);
+  // Strip mood/intensity/time tokens so "intense"↔"relaxed" and "main"↔"intense"
+  // pair up (not just the "…Tension"/"…Calm" convention).
+  const strip = id => id.replace(/(tension|intense|tense|calm|relaxed|relax|day|night|dawn|dusk|main)/ig, "").toLowerCase();
+  const b = strip(curArrId || ids[0]);
   if (mood === "tension") {
-    return ids.find(id => isTen(id) && base(id) === b) || ids.find(isTen) || null;
+    return ids.find(id => isTense(id) && strip(id) === b) || ids.find(isTense) || null;
   }
-  const same = ids.filter(id => !isTen(id) && base(id) === b);
-  return same.find(id => /day$/i.test(id)) || same.find(id => base(id) === id) || same[0]
-      || ids.find(id => !isTen(id)) || null;
+  const calm = ids.filter(id => !isTense(id));
+  return calm.find(id => strip(id) === b)
+      || calm.find(id => /calm|relax|main/i.test(id))
+      || calm.find(id => /day$/i.test(id))
+      || calm[0] || null;
 }
