@@ -10,7 +10,7 @@
 import { soundscapes } from "./soundscapes.mjs";
 import {
   CATEGORIES, WEATHER, prettify, musicMeta, hasTension, isTense, moodVariant,
-  ambienceBase, ambienceMeta
+  ambienceBase, ambienceMeta, folderIcon, folderCat
 } from "./meta.mjs";
 import { MaestroMixer } from "./mixer.mjs";
 
@@ -156,12 +156,16 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const sbRoot = String(game.settings.get(MODULE_ID, "soundboardPath") || "").trim();
     const sbCur = this.#sbPath || sbRoot;
     const sbEntry = sbEnabled ? this.#sbCache.get(sbCur) : null;
-    const sbDirs = (sbEntry?.dirs ?? []).map(d => ({
-      path: d.path, base: d.name,
-      name: this.#cn("folder", d.path) || Maestro.sbAlias?.(d.path) || d.name,
-      icon: this.#icon("folder", d.path, "fa-solid fa-folder"),
-      wild: Maestro.isFolderWild?.(d.path)
-    }));
+    const sbDirs = (sbEntry?.dirs ?? []).map(d => {
+      const wild = Maestro.isFolderWild?.(d.path);
+      return {
+        path: d.path, base: d.name,
+        name: this.#cn("folder", d.path) || Maestro.sbAlias?.(d.path) || d.name,
+        icon: this.#icon("folder", d.path, wild ? folderIcon(d.name) : "fa-solid fa-folder"),
+        cat: wild ? folderCat(d.name) : "sfx",
+        wild
+      };
+    });
     // Wildcard sounds: files sharing a name before "_" collapse to one tile that
     // plays a random variation each trigger.
     const sbGroups = {};

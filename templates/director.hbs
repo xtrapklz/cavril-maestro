@@ -140,7 +140,7 @@
     {{#if sbEmpty}}<div class="sb-status"><i class="fa-solid fa-circle-info"></i> Nothing here (check the path / source).</div>{{/if}}
     <div class="maestro-scroll layout-grid">
       {{#each sbDirs}}
-      <div class="maestro-item sb-folder {{#if wild}}sb-folder-wild{{/if}}" role="button" tabindex="0" data-kind="sbdir" data-path="{{path}}" data-name="{{name}}" data-default="{{base}}" data-cat="sfx">
+      <div class="maestro-item sb-folder {{#if wild}}sb-folder-wild{{/if}}" role="button" tabindex="0" data-kind="sbdir" data-path="{{path}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
         <i class="{{icon}}"></i><span class="nm">{{name}}</span>
         {{#if wild}}<span class="wild-badge" data-tooltip="Wildcard — plays a random sound inside"><i class="fa-solid fa-shuffle"></i></span>{{/if}}
         <button type="button" class="maestro-rename" data-folder-edit data-tooltip="Folder: rename · icon · wildcard"><i class="fa-solid fa-pen"></i></button>

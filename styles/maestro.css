@@ -237,9 +237,11 @@
 .maestro-director .layout-grid .maestro-item[data-cat="ambience"]   { background: #2a6a5a33; border-color: #45b99566; color: #a7efd6; }
 .maestro-director .layout-grid .maestro-item[data-cat="sfx"]        { background: #7a2a6a33; border-color: #b945a766; color: #efa7e0; }
 .maestro-director .layout-grid .maestro-item.active { background: var(--color-shadow-primary, #ff6400); border-color: #fff; color: #fff; }
-/* Soundboard sub-folder tiles: neutral, no colour tint; plain gray folder icon */
-.maestro-director .layout-grid .maestro-item.sb-folder { background: transparent; border-color: var(--color-border-light-tertiary, #4b4a44); color: inherit; }
-.maestro-director .layout-grid .maestro-item.sb-folder > i { color: #9aa0ad; }
+/* Navigate (opt-out) folders: neutral, plain gray folder icon.
+   Wildcard folders (the default) keep their category colour + relevant icon, with a dashed edge. */
+.maestro-director .layout-grid .maestro-item.sb-folder:not(.sb-folder-wild) { background: transparent; border-color: var(--color-border-light-tertiary, #4b4a44); color: inherit; }
+.maestro-director .layout-grid .maestro-item.sb-folder:not(.sb-folder-wild) > i { color: #9aa0ad; }
+.maestro-director .layout-grid .maestro-item.sb-folder-wild { border-style: dashed; }
 
 .maestro-director .hidden { display: none !important; }
 

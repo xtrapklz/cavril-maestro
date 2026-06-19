@@ -447,22 +447,24 @@ globalThis.Maestro = {
     return game.settings.set(MODULE_ID, "sbAliases", map);
   },
 
-  /** Whether a soundboard folder is a wildcard (click = random sound inside, not navigate). */
-  isFolderWild(path) { return !!(game.settings.get(MODULE_ID, "folderWild") || {})[path]; },
+  /** Whether a soundboard folder is a wildcard (click = random sound inside). Wildcard by DEFAULT. */
+  isFolderWild(path) { return (game.settings.get(MODULE_ID, "folderWild") || {})[path] !== false; },
 
-  /** Toggle a folder's wildcard mode. */
+  /** Toggle a folder's wildcard mode (default is on, so only an explicit "navigate" is stored). */
   async setFolderWild(path, on) {
     if (!game.user.isGM) return;
     const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "folderWild") || {});
-    if (on) map[path] = true; else delete map[path];
+    if (on) delete map[path]; else map[path] = false;
     return game.settings.set(MODULE_ID, "folderWild", map);
   },
 
-  /** Play a random audio file from a folder (wildcard folder click). */
+  /** Play a random audio file from a folder (wildcard click); looks one level into sub-folders if empty. */
   async playRandomInFolder(path) {
     if (!path) return;
-    const { files } = await this.browseSoundboard(path);
-    if (!files?.length) return ui.notifications?.warn("Maestro: no sounds in that folder.");
+    const top = await this.browseSoundboard(path);
+    const files = (top.files || []).slice();
+    if (!files.length) for (const d of (top.dirs || [])) { const sub = await this.browseSoundboard(d.path); files.push(...(sub.files || [])); }
+    if (!files.length) return ui.notifications?.warn("Maestro: no sounds in that folder.");
     this.playOneShot(files[Math.floor(Math.random() * files.length)].src);
   },
 

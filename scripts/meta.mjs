@@ -265,6 +265,29 @@ export function trackZoneIndex(id = "") {
   return TRACK_ZONES.length;
 }
 
+/** A content-relevant icon for a soundboard folder name (falls back to a folder-tree). */
+export function folderIcon(name = "") {
+  for (const [re, ic] of TRACK_ICON_RULES) if (re.test(name)) return ic;
+  if (/combat|fight|battle|attack|weapon|sword|hit|impact|burst/i.test(name)) return "fa-solid fa-burst";
+  if (/weather|storm|rain|thunder/i.test(name)) return "fa-solid fa-cloud-bolt";
+  if (/ui|menu|click|button|notif|alert/i.test(name)) return "fa-solid fa-bell";
+  if (/music|song|track|theme|tune/i.test(name)) return "fa-solid fa-music";
+  return "fa-solid fa-folder-tree";
+}
+
+/** A category key for a soundboard folder name (for tile colour); defaults to "sfx". */
+export function folderCat(name = "") {
+  if (/combat|fight|battle|attack|weapon|sword|hit|impact|burst|monster/i.test(name)) return "combat";
+  if (/town|city|tavern|market|village|crowd|street|shop|inn/i.test(name)) return "settlement";
+  if (/forest|wild|jungle|nature|wind|grass|tree|animal|beast/i.test(name)) return "wild";
+  if (/ocean|sea|coast|water|wave|ship|dock|river|beach/i.test(name)) return "coast";
+  if (/cave|dungeon|crypt|mine|tomb|undead|dark/i.test(name)) return "dungeon";
+  if (/temple|shrine|sacred|holy|arcane|magic|spell|ritual/i.test(name)) return "sacred";
+  if (/weather|storm|rain|thunder|snow|fog/i.test(name)) return "weather";
+  if (/music|song|theme|tune|festival|folk|bard/i.test(name)) return "folk";
+  return "sfx";
+}
+
 /** Display info for a music soundscape id. */
 export function musicMeta(id = "") {
   return MUSIC[id] ?? { name: prettify(id), cat: "theme", icon: CATEGORIES.theme.icon };
