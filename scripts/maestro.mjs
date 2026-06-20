@@ -581,6 +581,32 @@ globalThis.Maestro = {
     return Object.entries(counts).map(([tag, count]) => ({ tag, count })).sort((a, b) => a.tag.localeCompare(b.tag));
   },
 
+  /** Rename a tag across every cue that carries it (GM). The preset takes the new name. */
+  async renameTag(oldTag, newTag) {
+    if (!game.user.isGM) return;
+    const o = String(oldTag ?? "").trim(), n = String(newTag ?? "").trim();
+    if (!o || !n || o === n) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "tags") || {});
+    for (const key of Object.keys(map)) {
+      if (Array.isArray(map[key])) map[key] = [...new Set(map[key].map(t => t === o ? n : t))];
+    }
+    return game.settings.set(MODULE_ID, "tags", map);
+  },
+
+  /** Remove a tag from every cue that carries it, deleting that preset (GM). The cues stay. */
+  async deleteTag(tag) {
+    if (!game.user.isGM) return;
+    const t = String(tag ?? "").trim();
+    if (!t) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "tags") || {});
+    for (const key of Object.keys(map)) {
+      if (!Array.isArray(map[key])) continue;
+      const next = map[key].filter(x => x !== t);
+      if (next.length) map[key] = next; else delete map[key];
+    }
+    return game.settings.set(MODULE_ID, "tags", map);
+  },
+
   /**
    * Trigger a preset: play the cues carrying `tag`, but only ONE per exclusive
    * channel (music / ambience / weather — they'd otherwise stomp each other),
@@ -1197,35 +1223,71 @@ function injectCueField(html, doc, flagKey, label, hint) {
   } catch (e) { console.warn(`${MODULE_ID} | cue field injection skipped:`, e); }
 }
 
-Hooks.on("renderSceneConfig", (app, html) => injectCueField(html, app.document, "onActivate", "Maestro cue on activate", "Plays this Maestro cue/preset when this scene is activated."));
-Hooks.on("renderAmbientSoundConfig", (app, html) => injectCueField(html, app.document, "ref", "Maestro cue on enter", "Fires this Maestro cue/preset when a party token enters this sound's area."));
+Hooks.on("renderSceneConfig", (app, html) => injectCueField(html, app.document, "onActivate", "Maestro default cue", "The scene's DEFAULT Maestro cue/preset — sounds while you're on this scene and no party token is inside an ambient-sound zone. Leave blank to keep manual control of this scene's audio."));
+Hooks.on("renderAmbientSoundConfig", (app, html) => injectCueField(html, app.document, "ref", "Maestro cue in this zone", "While a party token is inside this sound's range, Maestro switches to this cue/preset; on exit it reverts to the next zone, or the scene default."));
 
-// Scene activation → fire its assigned cue.
-Hooks.on("updateScene", (scene, changes) => {
-  if (!game.user?.isGM || changes?.active !== true) return;
-  const ref = scene.getFlag(MODULE_ID, "onActivate");
-  if (ref) try { Maestro.triggerRef(ref); } catch (e) { console.warn(`${MODULE_ID} | scene cue skipped:`, e); }
-});
-
-// Ambient-sound proximity → fire when a party token first enters the area.
+// Scene "default" cue + ambient-zone takeover.
+// A scene's `onActivate` cue is its DEFAULT — it sounds whenever you're on the scene
+// (and nobody is inside a zone). When a party token enters an ambient sound's range,
+// THAT sound's `ref` cue takes over; leaving it reverts to the next still-occupied zone,
+// or back to the scene default. So ambient sounds act as "switch Maestro to this cue /
+// preset while a party token is inside this zone." Only scenes that set a default cue are
+// auto-managed — leave `onActivate` blank to keep manual control of a scene's audio.
 const _ambInside = new Map();   // ambientSoundId → boolean (a party token is inside)
+let _zoneStack = [];            // occupied ambient-sound ids, in entry order (top = current)
+let _lastSceneCue = null;       // the ref we last applied — only switch when it changes
+
+/** The cue that should be sounding now: the most-recently-entered occupied zone, else the scene default. */
+function desiredSceneCue() {
+  for (let i = _zoneStack.length - 1; i >= 0; i--) {
+    const ref = canvas?.sounds?.get?.(_zoneStack[i])?.document?.getFlag?.(MODULE_ID, "ref");
+    if (ref) return ref;
+  }
+  return canvas?.scene?.getFlag?.(MODULE_ID, "onActivate") || null;
+}
+
+/** Trigger the desired cue if it differs from what we last applied (GM only). */
+function applySceneAudio() {
+  if (!game.user?.isGM || !canvas?.ready) return;
+  const ref = desiredSceneCue();
+  if (!ref || ref === _lastSceneCue) return;
+  _lastSceneCue = ref;
+  try { Maestro.triggerRef(ref); } catch (e) { console.warn(`${MODULE_ID} | scene audio skipped:`, e); }
+}
+
 function checkAmbientTriggers() {
   if (!game.user?.isGM || !canvas?.ready) return;
   const dim = canvas.dimensions;
   const pxPerUnit = dim?.distance ? (dim.size / dim.distance) : 1;
   const tokens = (canvas.tokens?.placeables ?? []).filter(t => t.actor?.hasPlayerOwner);
+  let changed = false;
   for (const snd of (canvas.sounds?.placeables ?? [])) {
     const ref = snd.document?.getFlag?.(MODULE_ID, "ref");
     if (!ref) continue;
     const cx = snd.document.x, cy = snd.document.y, pr = (snd.document.radius || 0) * pxPerUnit;
     const inside = tokens.some(t => Math.hypot(t.center.x - cx, t.center.y - cy) <= pr);
     const was = _ambInside.get(snd.id) || false;
-    if (inside && !was) try { Maestro.triggerRef(ref); } catch (_e) { /* ignore */ }
+    if (inside !== was) {
+      _zoneStack = _zoneStack.filter(id => id !== snd.id);
+      if (inside) _zoneStack.push(snd.id);   // newly entered becomes the current zone
+      changed = true;
+    }
     _ambInside.set(snd.id, inside);
   }
+  if (changed) applySceneAudio();
 }
+
 Hooks.on("updateToken", (_doc, ch) => { if (("x" in (ch || {})) || ("y" in (ch || {}))) checkAmbientTriggers(); });
-Hooks.on("canvasReady", () => { _ambInside.clear(); checkAmbientTriggers(); });
+// New scene drawn → reset zone occupancy, then play whatever the scene calls for.
+Hooks.on("canvasReady", () => { _ambInside.clear(); _zoneStack = []; checkAmbientTriggers(); applySceneAudio(); });
+// Scene (re)activated, or its default cue edited → re-evaluate the default.
+Hooks.on("updateScene", (scene, changes) => {
+  if (!game.user?.isGM) return;
+  if (changes?.active === true || foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.onActivate`)) {
+    _lastSceneCue = null;
+    applySceneAudio();
+  }
+});
 
 Hooks.on("getSceneControlButtons", controls => {
   if (!game.user?.isGM) return;

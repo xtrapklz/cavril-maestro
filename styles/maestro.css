@@ -281,6 +281,14 @@ a.maestro-link { display: inline-flex; align-items: center; gap: 4px; padding: 0
 a.maestro-link:hover { background: var(--color-shadow-primary, #ff6400); color: #fff; }
 a.maestro-link i { font-size: .85em; opacity: .85; }
 .maestro-director .preset-label[draggable="true"] { cursor: grab; }
+/* Tag overview row at the top of the Presets tab — see + manage every tag */
+.maestro-director .preset-tags { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 2px 7px; margin-bottom: 4px; border-bottom: 1px solid var(--color-border-dark, #1e1e1e); }
+.maestro-director .preset-tags .pt-label { font-size: 11px; opacity: .55; display: inline-flex; align-items: center; gap: 4px; margin-right: 2px; }
+.maestro-director .pt-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 3px 1px 8px; border-radius: 11px; background: #7a2a6a33; border: 1px solid #b945a766; color: #efa7e0; cursor: pointer; }
+.maestro-director .pt-chip:hover { background: #7a2a6a66; }
+.maestro-director .pt-chip .pt-count { font-size: 9px; opacity: .7; }
+.maestro-director .pt-chip .pt-del { width: 16px; height: 16px; padding: 0; border: none; border-radius: 50%; background: transparent; opacity: .5; font-size: 9px; }
+.maestro-director .pt-chip .pt-del:hover { opacity: 1; background: rgba(255,255,255,0.2); }
 
 /* Live intensity graph (radar polygon over the morpher) */
 .mm-graph { fill: rgba(255,100,0,0.15); stroke: var(--color-shadow-primary, #ff6400); stroke-width: 1.5; stroke-linejoin: round; pointer-events: none; }

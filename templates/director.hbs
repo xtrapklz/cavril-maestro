@@ -188,6 +188,14 @@
   {{!-- PRESETS ZONE (one trigger per tag) --}}
   <div class="maestro-zone {{#if tabPreset}}active{{/if}}" data-zone="preset">
     {{#unless presets.length}}<div class="sb-status"><i class="fa-solid fa-bolt"></i> No presets yet — tag several sounds with the same word (via the ✎ on any sound) and that tag becomes a one-click scene here.</div>{{/unless}}
+    {{#if allTags.length}}
+    <div class="preset-tags">
+      <span class="pt-label" data-tooltip="Every tag in use. Click a chip to rename it everywhere; × removes it from all cues."><i class="fa-solid fa-tags"></i> {{allTags.length}} tags</span>
+      {{#each allTags}}
+      <span class="pt-chip" data-tag-chip="{{tag}}" data-tooltip="Rename '{{tag}}' across all cues"><span class="pt-name">{{tag}}</span><span class="pt-count">{{count}}</span><button type="button" class="pt-del" data-tag-del="{{tag}}" data-tooltip="Delete '{{tag}}' from every cue"><i class="fa-solid fa-xmark"></i></button></span>
+      {{/each}}
+    </div>
+    {{/if}}
     <div class="maestro-scroll preset-list">
       {{#each presets}}
       <div class="preset-group">

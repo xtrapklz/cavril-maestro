@@ -367,6 +367,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       tabMusic: tab === "music", tabAmb: tab === "amb", tabWeather: tab === "weather", tabSfx: tab === "sfx", tabFav: tab === "fav", tabPreset: tab === "preset",
       counts,
       musicGroups, ambienceGroups, weatherItems, soundboard, sbDirs, favoriteGroups, presets,
+      allTags: Maestro.allTags?.() ?? [],
       // Music transport
       hasMusic: !!music.soundscapeId,
       nowMusic: music.soundscapeId ? (this.#cn("music", music.soundscapeId) || musicMeta(music.soundscapeId).name) : "—",
@@ -468,6 +469,33 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       e.stopPropagation();
       const item = e.currentTarget.closest(".maestro-item");
       if (item) await this.#promptPresetAlias(item.dataset.tag, item.dataset.key, item.dataset.name);
+    });
+    // Tag overview chips — rename a tag across all cues (click), or delete it everywhere (×).
+    onAll('[data-tag-chip]', "click", async e => {
+      if (e.target.closest("[data-tag-del]")) return;            // the × handles its own click
+      const tag = e.currentTarget.dataset.tagChip;
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      const esc = s => String(s ?? "").replace(/"/g, "&quot;");
+      let next = null;
+      if (DialogV2?.prompt) {
+        next = await DialogV2.prompt({
+          window: { title: `Rename tag — ${tag}`, icon: "fa-solid fa-tag" },
+          content: `<p style="margin:.25rem 0 .45rem;opacity:.75">Rename <b>${esc(tag)}</b> across every cue that carries it.</p>`
+                 + `<input type="text" name="t" value="${esc(tag)}" style="width:100%">`,
+          ok: { label: "Rename", icon: "fa-solid fa-check", callback: (_ev, btn) => btn.form.elements.t.value },
+          rejectClose: false
+        }).catch(() => null);
+      } else next = window.prompt(`Rename tag "${tag}" everywhere:`, tag);
+      if (next && next.trim() && next.trim() !== tag) await Maestro.renameTag(tag, next.trim());
+    });
+    onAll('[data-tag-del]', "click", async e => {
+      e.stopPropagation();
+      const tag = e.currentTarget.dataset.tagDel;
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      const ok = DialogV2?.confirm
+        ? await DialogV2.confirm({ window: { title: "Delete tag" }, content: `<p>Remove the tag <b>${tag}</b> from every cue? Its preset disappears; the cues themselves stay.</p>`, rejectClose: false }).catch(() => false)
+        : window.confirm(`Remove the tag "${tag}" from every cue?`);
+      if (ok) await Maestro.deleteTag(tag);
     });
     // Preset member: drag to reorder within the same preset.
     const presetZone = el.querySelector('.maestro-zone[data-zone="preset"]');
