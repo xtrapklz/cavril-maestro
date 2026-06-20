@@ -373,7 +373,9 @@ class EmberSoundOrchestration extends foundry.audio.Sound {
     const arranged = {};
     if ( this.arrangement.oneShot ) return arranged;
     this.#debug("Fixed arrangement");
+    const bad = Maestro?._badSrcs;
     for ( const layer of this.arrangement.layers.values() ) {
+      if ( bad?.size && bad.has(layer.src) ) continue;   // cavril-maestro: skip stems that failed to load
       arranged[layer.id] = layer.volume;
     }
     return arranged;
@@ -388,7 +390,11 @@ class EmberSoundOrchestration extends foundry.audio.Sound {
    */
   #arrangeGroup(group) {
     this.#debug(`Arranging group "${group.id}"`);
-    const layers = group.layers;
+    // cavril-maestro: skip stems that previously failed to load (unreachable/broken assets),
+    // so a bad file isn't re-requested every generative re-roll. If they're ALL bad, fall back
+    // to the full set rather than going silent.
+    const bad = Maestro?._badSrcs;
+    const layers = (bad?.size && group.layers.some(l => !bad.has(l.src))) ? group.layers.filter(l => !bad.has(l.src)) : group.layers;
 
     // Select a desired number of layers
     let {min=0, max=layers.length} = group.randomLayers || {};
@@ -473,7 +479,16 @@ class EmberSoundOrchestration extends foundry.audio.Sound {
   async #addLayer(layer) {
     layer.sound = new foundry.audio.Sound(layer.src, {context: this.context});
     layer.sound.destination = this.gainNode;
-    await layer.sound.load();
+    // cavril-maestro: a stem that won't load (404 / ERR_CONTENT_DECODING_FAILED / decode error)
+    // is recorded once and skipped on future rolls, instead of throwing + retrying every cycle.
+    try {
+      await layer.sound.load();
+    } catch (err) {
+      const bad = (globalThis.Maestro && (Maestro._badSrcs ||= new Set()));
+      if ( bad && !bad.has(layer.src) ) { bad.add(layer.src); console.warn(`cavril-maestro | stem unreachable, skipping it in future rolls: ${layer.src}`, err); }
+      layer.sound = null;
+      return;
+    }
 
     // Update layer duration
     const t = layer.timing;

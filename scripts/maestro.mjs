@@ -47,6 +47,8 @@ globalThis.Maestro = {
   /** @type {Record<string,string[]>} per-wildcard shuffle bags (no repeats until a cycle completes) */
   _wildBag: {},
   _wildLast: {},
+  /** @type {Set<string>} stem srcs that failed to load — skipped on future generative rolls */
+  _badSrcs: new Set(),
   /** @type {null|{soundscapeId:string,vid:string}} the custom music variation currently selected (UI highlight) */
   activeVariation: null,
 
@@ -496,13 +498,22 @@ globalThis.Maestro = {
     clearTimeout(this._doorCloseTimer); this._doorCloseTimer = null;
     if (!game.settings.get(MODULE_ID, "doorSound")) return;
     const v = Number(game.settings.get(MODULE_ID, "sfxVolume"));
-    const vol = Number.isFinite(v) ? v : 0.8;
+    const vol = (Number.isFinite(v) ? v : 0.8) * 0.5;   // door cue sits at half the soundboard level
     const play = src => { try { foundry.audio.AudioHelper.play({ src, volume: vol, loop: false, autoplay: true }, false); } catch (e) { console.warn(`${MODULE_ID} | door sound failed:`, e); } };
     play(this.doorSoundSrc("open"));
     if (entering) {
       const ms = Math.max(200, (Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 1) * 1000);
       this._doorCloseTimer = setTimeout(() => { this._doorCloseTimer = null; play(this.doorSoundSrc("close")); }, ms);
     }
+  },
+
+  /** Forget stems marked unreachable and re-roll, so fixed/re-uploaded files get retried (no reload needed). */
+  retryBadStems() {
+    const n = this._badSrcs.size;
+    this._badSrcs.clear();
+    try { this.rearrange?.("music"); this.rearrange?.("environment"); } catch (_e) { /* ignore */ }
+    ui.notifications?.info(`Maestro: cleared ${n} skipped stem(s) — re-rolling.`);
+    return n;
   },
 
   /* ----- Custom display names (GM-authored, world-shared) ----- */
