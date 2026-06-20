@@ -43,6 +43,7 @@ globalThis.Maestro = {
   /** @type {null|foundry.audio.Sound} the looping indoor room-tone bed (interior mode) */
   _interiorBed: null,
   _interiorBedWant: false,
+  _doorCloseTimer: null,
   /** @type {Record<string,string[]>} per-wildcard shuffle bags (no repeats until a cycle completes) */
   _wildBag: {},
   _wildLast: {},
@@ -471,24 +472,37 @@ globalThis.Maestro = {
     }
   },
 
-  /** The core door-open sound path (from CONFIG.Wall.doorSounds), falling back to the wood door. */
-  doorSoundSrc() {
+  /** A core door sound path (`open`/`close`) from CONFIG.Wall.doorSounds, falling back to the wood door. */
+  doorSoundSrc(kind = "open") {
     try {
       const sets = CONFIG?.Wall?.doorSounds || {};
       const pick = sets.woodBasic || Object.values(sets)[0];
-      let open = pick?.open;
-      if (Array.isArray(open)) open = open[0];
-      if (typeof open === "string" && open) return open;
+      let s = pick?.[kind];
+      if (Array.isArray(s)) s = s[0];
+      if (typeof s === "string" && s) return s;
     } catch (_e) { /* ignore */ }
-    return "sounds/doors/wood/open.ogg";
+    return kind === "close" ? "sounds/doors/wood/close.ogg" : "sounds/doors/wood/open.ogg";
   },
 
-  /** Play the core door-open SFX once, locally — the interior/exterior transition cue (gated by the doorSound setting). */
-  playDoorSound() {
+  /**
+   * The door cue for the interior/exterior toggle (gated by the doorSound setting),
+   * played once locally on every client. The open sound always fires immediately;
+   * when ENTERING interior a close sound follows, timed to land at the end of the
+   * crossfade (you step in and the door shuts behind you). Leaving for exterior plays
+   * only the open under the crossfade — no close.
+   * @param {boolean} entering  true when switching INTO interior mode
+   */
+  playDoorSound(entering) {
+    clearTimeout(this._doorCloseTimer); this._doorCloseTimer = null;
     if (!game.settings.get(MODULE_ID, "doorSound")) return;
     const v = Number(game.settings.get(MODULE_ID, "sfxVolume"));
-    try { foundry.audio.AudioHelper.play({ src: this.doorSoundSrc(), volume: Number.isFinite(v) ? v : 0.8, loop: false, autoplay: true }, false); }
-    catch (e) { console.warn(`${MODULE_ID} | door sound failed:`, e); }
+    const vol = Number.isFinite(v) ? v : 0.8;
+    const play = src => { try { foundry.audio.AudioHelper.play({ src, volume: vol, loop: false, autoplay: true }, false); } catch (e) { console.warn(`${MODULE_ID} | door sound failed:`, e); } };
+    play(this.doorSoundSrc("open"));
+    if (entering) {
+      const ms = Math.max(200, (Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 1) * 1000);
+      this._doorCloseTimer = setTimeout(() => { this._doorCloseTimer = null; play(this.doorSoundSrc("close")); }, ms);
+    }
   },
 
   /* ----- Custom display names (GM-authored, world-shared) ----- */
@@ -801,7 +815,7 @@ Hooks.once("init", () => {
   // bed (world-shared so all hear it).
   game.settings.register(MODULE_ID, "interiorOn", {
     scope: "world", config: false, type: Boolean, default: false,
-    onChange: v => { try { Maestro.setInteriorFilter(v, game.settings.get(MODULE_ID, "interiorFreq"), true); Maestro.setInteriorBed(v); Maestro.playDoorSound(); } catch (_e) {} MaestroDirector.refresh(); }
+    onChange: v => { try { Maestro.setInteriorFilter(v, game.settings.get(MODULE_ID, "interiorFreq"), true); Maestro.setInteriorBed(v); Maestro.playDoorSound(v); } catch (_e) {} MaestroDirector.refresh(); }
   });
   // Door SFX cue on the interior/exterior toggle (core door-open sound).
   game.settings.register(MODULE_ID, "doorSound", {
