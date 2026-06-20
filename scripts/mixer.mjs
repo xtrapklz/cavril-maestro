@@ -265,13 +265,17 @@ export const MaestroMixer = {
     const info = this.tracksFor(channel);
     if (!info) return null;
     const r = Math.max(0, Math.min(1, pr));
+    // Ease-in on the puck radius: the mix holds near a full circle through the inner
+    // ~half of the travel and the tight solo only develops out toward the rim, so the
+    // shape at ~50% out matches what a linear response gave at ~10% (0.5^3.3 ≈ 0.1).
+    const rEff = Math.pow(r, 3.3);
     const n = Math.max(1, info.tracks.length);
     const hw = Math.PI / n;            // plateau half-width = half the angular spacing
     const SHARP = 0.9;                 // higher = tighter solo at the rim
     const f = {};
     for (const t of info.tracks) {
       if (t.muted) { f[t.id] = 0; continue; }
-      const fall = r * (SHARP / hw) * Math.max(0, angDist(pa, t.angle) - hw);   // 0 in the plateau; grows outside, scaled by radius
+      const fall = rEff * (SHARP / hw) * Math.max(0, angDist(pa, t.angle) - hw);   // 0 in the plateau; grows outside, scaled by eased radius
       f[t.id] = Math.max(0, Math.min(1, 1 - fall));
     }
     return { info, f };
