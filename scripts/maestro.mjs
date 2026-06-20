@@ -43,7 +43,6 @@ globalThis.Maestro = {
   /** @type {null|foundry.audio.Sound} the looping indoor room-tone bed (interior mode) */
   _interiorBed: null,
   _interiorBedWant: false,
-  _doorCloseTimer: null,
   /** @type {Record<string,string[]>} per-wildcard shuffle bags (no repeats until a cycle completes) */
   _wildBag: {},
   _wildLast: {},
@@ -488,23 +487,18 @@ globalThis.Maestro = {
 
   /**
    * The door cue for the interior/exterior toggle (gated by the doorSound setting),
-   * played once locally on every client. The open sound always fires immediately;
-   * when ENTERING interior a close sound follows, timed to land at the end of the
-   * crossfade (you step in and the door shuts behind you). Leaving for exterior plays
-   * only the open under the crossfade — no close.
+   * played once locally on every client — exactly ONE sound per switch:
+   *   entering interior  → the door CLOSES (you shut it behind you);
+   *   leaving to exterior → the door OPENS (you step out).
    * @param {boolean} entering  true when switching INTO interior mode
    */
   playDoorSound(entering) {
-    clearTimeout(this._doorCloseTimer); this._doorCloseTimer = null;
     if (!game.settings.get(MODULE_ID, "doorSound")) return;
     const v = Number(game.settings.get(MODULE_ID, "sfxVolume"));
     const vol = (Number.isFinite(v) ? v : 0.8) * 0.5;   // door cue sits at half the soundboard level
-    const play = src => { try { foundry.audio.AudioHelper.play({ src, volume: vol, loop: false, autoplay: true }, false); } catch (e) { console.warn(`${MODULE_ID} | door sound failed:`, e); } };
-    play(this.doorSoundSrc("open"));
-    if (entering) {
-      const ms = Math.max(200, (Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 1) * 1000);
-      this._doorCloseTimer = setTimeout(() => { this._doorCloseTimer = null; play(this.doorSoundSrc("close")); }, ms);
-    }
+    const src = this.doorSoundSrc(entering ? "close" : "open");
+    try { foundry.audio.AudioHelper.play({ src, volume: vol, loop: false, autoplay: true }, false); }
+    catch (e) { console.warn(`${MODULE_ID} | door sound failed:`, e); }
   },
 
   /** Forget stems marked unreachable and re-roll, so fixed/re-uploaded files get retried (no reload needed). */
