@@ -214,7 +214,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
         name: this.#cn("folder", d.path) || Maestro.sbAlias?.(d.path) || d.name,
         icon: this.#icon("folder", d.path, wild ? folderIcon(d.name) : "fa-solid fa-folder"),
         cat: wild ? folderCat(d.name) : "sfx",
-        wild
+        wild, active: !!Maestro.isSfxPlaying?.(d.path), loop: !!Maestro.sfxLoop?.(d.path)
       };
     });
     // Wildcard sounds: files sharing a name before "_" collapse to one tile that
@@ -228,10 +228,10 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     const soundboard = Object.entries(sbGroups).map(([prefix, files]) => {
       if (files.length === 1) {
         const f = files[0], base = f.name;
-        return { src: f.src, srcs: "", wild: false, editId: f.src, base, favId: f.src, fav: this.#fav("sfx", f.src), tags: this.#tags("sfx", f.src), name: this.#cn("sfx", f.src) || Maestro.sbAlias?.(f.src) || base, icon: this.#icon("sfx", f.src, "fa-solid fa-volume-high"), cat: "sfx" };
+        return { src: f.src, srcs: "", wild: false, editId: f.src, base, favId: f.src, fav: this.#fav("sfx", f.src), tags: this.#tags("sfx", f.src), name: this.#cn("sfx", f.src) || Maestro.sbAlias?.(f.src) || base, icon: this.#icon("sfx", f.src, "fa-solid fa-volume-high"), cat: "sfx", active: !!Maestro.isSfxPlaying?.(f.src), loop: !!Maestro.sfxLoop?.(f.src) };
       }
       const srcs = files.map(f => f.src), base = prettify(prefix);
-      return { src: srcs[0], srcs: srcs.join("|"), wild: true, count: files.length, editId: srcs[0], base, favId: srcs[0], fav: this.#fav("sfx", srcs[0]), tags: this.#tags("sfx", srcs[0]), name: this.#cn("sfx", srcs[0]) || base, icon: this.#icon("sfx", srcs[0], "fa-solid fa-shuffle"), cat: "sfx" };
+      return { src: srcs[0], srcs: srcs.join("|"), wild: true, count: files.length, editId: srcs[0], base, favId: srcs[0], fav: this.#fav("sfx", srcs[0]), tags: this.#tags("sfx", srcs[0]), name: this.#cn("sfx", srcs[0]) || base, icon: this.#icon("sfx", srcs[0], "fa-solid fa-shuffle"), cat: "sfx", active: !!Maestro.isSfxPlaying?.(srcs[0]), loop: !!Maestro.sfxLoop?.(srcs[0]) };
     });
 
     // Wildcard groups across every scanned soundboard folder: head src → full pipe-joined
@@ -267,7 +267,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       } else if (kind === "sfx") {
         const srcs = sfxWild[fid] || "";
         const nm = this.#cn("sfx", fid) || Maestro.sbAlias?.(fid) || prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, ""));
-        it = { kind, favId: fid, fav: true, src: fid, srcs, name: nm, sub: "", icon: this.#icon("sfx", fid, srcs ? "fa-solid fa-shuffle" : "fa-solid fa-volume-high"), cat: "sfx" };
+        it = { kind, favId: fid, fav: true, src: fid, srcs, name: nm, sub: "", icon: this.#icon("sfx", fid, srcs ? "fa-solid fa-shuffle" : "fa-solid fa-volume-high"), cat: "sfx", active: !!Maestro.isSfxPlaying?.(fid) };
       }
       if (it) (favByCat[it.cat] ??= []).push(it);
     }
@@ -545,14 +545,20 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
         if (outgoing && outgoing !== newCue) this.#markFading(kind, outgoing);        // switching → outgoing tile fades out during the crossfade
         return;                                                                       // play() → onChange re-render re-applies the mark
       }
-      else if (kind === "sbdir") {                                                     // wildcard folder = random sound; else open
-        if (Maestro.isFolderWild?.(path)) { Maestro.playRandomInFolder(path); return; }
+      else if (kind === "sbdir") {                                                     // wildcard folder = toggle play/stop; else open
+        if (Maestro.isFolderWild?.(path)) {
+          if (Maestro.isSfxPlaying?.(path)) { e.currentTarget.classList.add("fading"); Maestro.toggleSfx(path); return; }   // stop
+          Maestro.toggleSfxFolder(path, Maestro.sfxLoop?.(path));                                                          // resolve files + start
+          return;
+        }
         this.#sbPath = path; this.render(); return;
       }
-      else if (kind === "sfx") {                                                       // play (random NON-repeating variation if wildcard), then back to main board
+      else if (kind === "sfx") {                                                       // tap to play, tap again to stop (loop or long one-shot)
+        const key = e.currentTarget.dataset.id || src;
+        if (Maestro.isSfxPlaying?.(key)) { e.currentTarget.classList.add("fading"); Maestro.toggleSfx(key); return; }      // stop → fade-out
         const list = (e.currentTarget.dataset.srcs || "").split("|").filter(Boolean);
-        Maestro.playRandomOneShot(e.currentTarget.dataset.id || src, list.length ? list : [src]);
-        this.#sbPath = null; this.render(); return;
+        Maestro.toggleSfx(key, list.length ? list : [src], Maestro.sfxLoop?.(key));                                       // start (refresh comes from the registry)
+        return;
       }
       this.render();
     });
@@ -661,14 +667,16 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
                + `<p style="margin:.25rem 0 .4rem;opacity:.75">Tags (comma-separated) — searchable, and each tag becomes a Preset.</p>`
                + `<input type="text" name="tg" value="${esc(currentTags)}" placeholder="combat, night, docks" style="width:100%;margin-bottom:.55rem">`
                + `<p style="margin:.25rem 0 .4rem;opacity:.75">Icon — a Font Awesome class (blank = default). <a href="https://fontawesome.com/search?o=r&m=free&s=solid" target="_blank" rel="noopener">browse icons ↗</a> (click one → copy its <code>fa-solid fa-…</code> name)</p>`
-               + `<input type="text" name="ic" value="${esc(currentIcon)}" placeholder="fa-solid fa-dragon" style="width:100%">`,
-        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, tags: btn.form.elements.tg.value, icon: btn.form.elements.ic.value }) },
+               + `<input type="text" name="ic" value="${esc(currentIcon)}" placeholder="fa-solid fa-dragon" style="width:100%">`
+               + (kind === "sfx" ? `<label style="display:flex;gap:7px;align-items:center;font-size:12px;margin-top:.6rem"><input type="checkbox" name="loop" ${Maestro.sfxLoop?.(id) ? "checked" : ""}> Loop — keep playing until tapped again (instead of once)</label>` : ``),
+        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, tags: btn.form.elements.tg.value, icon: btn.form.elements.ic.value, loop: !!btn.form.elements.loop?.checked }) },
         rejectClose: false
       }).catch(() => null);
       if (!res) return;
       await Maestro.setCustomName(kind, id, res.name);
       await Maestro.setTags(kind, id, String(res.tags || "").split(",").map(s => s.trim()).filter(Boolean));
       await Maestro.setCustomIcon(kind, id, res.icon);
+      if (kind === "sfx") await Maestro.setSfxLoop(id, res.loop);
     } else {
       const next = window.prompt(`Custom name for "${base ?? id}" (blank = default):`, current ?? "");
       if (next !== null) await Maestro.setCustomName(kind, id, next);
@@ -686,13 +694,15 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
              + `<input type="text" name="nm" value="${esc(current)}" placeholder="${esc(base)}" style="width:100%;margin-bottom:.5rem">`
              + `<p style="margin:.25rem 0 .4rem;opacity:.75">Icon — Font Awesome class (blank = folder). <a href="https://fontawesome.com/search?o=r&m=free&s=solid" target="_blank" rel="noopener">browse icons ↗</a> (click one → copy its <code>fa-solid fa-…</code> name)</p>`
              + `<input type="text" name="ic" value="${esc(icon)}" placeholder="fa-solid fa-folder" style="width:100%;margin-bottom:.6rem">`
-             + `<label style="display:flex;gap:7px;align-items:center;font-size:12px"><input type="checkbox" name="wild" ${wild ? "checked" : ""}> Wildcard — click plays a random sound inside (instead of opening it)</label>`,
-      ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, icon: btn.form.elements.ic.value, wild: btn.form.elements.wild.checked }) },
+             + `<label style="display:flex;gap:7px;align-items:center;font-size:12px"><input type="checkbox" name="wild" ${wild ? "checked" : ""}> Wildcard — click plays a random sound inside (instead of opening it)</label>`
+             + `<label style="display:flex;gap:7px;align-items:center;font-size:12px;margin-top:.4rem"><input type="checkbox" name="loop" ${Maestro.sfxLoop?.(path) ? "checked" : ""}> Loop — cycle the folder's sounds continuously until tapped again (wildcard only)</label>`,
+      ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ name: btn.form.elements.nm.value, icon: btn.form.elements.ic.value, wild: btn.form.elements.wild.checked, loop: !!btn.form.elements.loop?.checked }) },
       rejectClose: false
     }).catch(() => null);
     if (!res) return;
     await Maestro.setCustomName("folder", path, res.name);
     await Maestro.setCustomIcon("folder", path, res.icon);
+    await Maestro.setSfxLoop(path, res.loop);
     await Maestro.setFolderWild(path, res.wild);
   }
 

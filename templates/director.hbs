@@ -151,18 +151,20 @@
     {{#if sbEmpty}}<div class="sb-status"><i class="fa-solid fa-circle-info"></i> Nothing here (check the path / source).</div>{{/if}}
     <div class="maestro-scroll layout-grid">
       {{#each sbDirs}}
-      <div class="maestro-item sb-folder {{#if wild}}sb-folder-wild{{/if}}" role="button" tabindex="0" data-kind="sbdir" data-path="{{path}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+      <div class="maestro-item sb-folder {{#if wild}}sb-folder-wild{{/if}} {{#if active}}active{{/if}}" role="button" tabindex="0" data-kind="sbdir" data-path="{{path}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
         <i class="{{icon}}"></i><span class="nm">{{name}}</span>
+        {{#if loop}}<span class="loop-badge" data-tooltip="Loops — cycles continuously until tapped again"><i class="fa-solid fa-repeat"></i></span>{{/if}}
         {{#if wild}}<span class="wild-badge" data-tooltip="Wildcard — plays a random sound inside"><i class="fa-solid fa-shuffle"></i></span>{{/if}}
-        <button type="button" class="maestro-rename" data-folder-edit data-tooltip="Folder: rename · icon · wildcard"><i class="fa-solid fa-pen"></i></button>
+        <button type="button" class="maestro-rename" data-folder-edit data-tooltip="Folder: rename · icon · wildcard · loop"><i class="fa-solid fa-pen"></i></button>
       </div>
       {{/each}}
       {{#each soundboard}}
-      <div class="maestro-item {{#if wild}}sb-wild{{/if}}" role="button" tabindex="0" draggable="true" data-ref="sfx:{{src}}" data-kind="sfx" data-id="{{editId}}" data-src="{{src}}" data-srcs="{{srcs}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
+      <div class="maestro-item {{#if wild}}sb-wild{{/if}} {{#if active}}active{{/if}}" role="button" tabindex="0" draggable="true" data-ref="sfx:{{src}}" data-kind="sfx" data-id="{{editId}}" data-src="{{src}}" data-srcs="{{srcs}}" data-fav-id="{{favId}}" data-tags="{{tags}}" data-name="{{name}}" data-default="{{base}}" data-cat="{{cat}}">
         <i class="{{icon}}"></i><span class="nm">{{name}}</span>
+        {{#if loop}}<span class="loop-badge" data-tooltip="Loops until tapped again"><i class="fa-solid fa-repeat"></i></span>{{/if}}
         {{#if wild}}<span class="wild-badge" data-tooltip="{{count}} variations — random each play">{{count}}</span>{{/if}}
         <button type="button" class="maestro-fav {{#if fav}}faved{{/if}}" data-fav data-tooltip="Favorite"><i class="fa-solid fa-star"></i></button>
-        <button type="button" class="maestro-rename" data-rename data-tooltip="Rename · tag · icon"><i class="fa-solid fa-pen"></i></button>
+        <button type="button" class="maestro-rename" data-rename data-tooltip="Rename · tag · icon · loop"><i class="fa-solid fa-pen"></i></button>
       </div>
       {{/each}}
     </div>
@@ -176,7 +178,7 @@
       {{#each favoriteGroups}}
         <div class="grp"><i class="{{icon}}"></i> {{label}}</div>
         {{#each items}}
-        <div class="maestro-item" role="button" tabindex="0" draggable="true" data-fav-key="{{kind}}:{{favId}}" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-srcs="{{srcs}}" data-fav-id="{{favId}}" data-name="{{name}}" data-cat="{{cat}}">
+        <div class="maestro-item {{#if active}}active{{/if}}" role="button" tabindex="0" draggable="true" data-fav-key="{{kind}}:{{favId}}" data-kind="{{kind}}" data-id="{{id}}" data-src="{{src}}" data-srcs="{{srcs}}" data-fav-id="{{favId}}" data-name="{{name}}" data-cat="{{cat}}">
           <i class="{{icon}}"></i><span class="nm">{{name}}</span><span class="sub">{{sub}}</span>
           <button type="button" class="maestro-fav faved" data-fav data-tooltip="Remove from favorites"><i class="fa-solid fa-star"></i></button>
         </div>

@@ -135,6 +135,8 @@
 /* Wildcard soundboard tile badge (random-variation count) */
 .maestro-director .layout-grid .maestro-item.sb-wild { border-style: dashed; }
 .maestro-director .wild-badge { position: absolute; bottom: 2px; right: 3px; font-size: 9px; font-weight: 700; opacity: .75; line-height: 1; }
+.maestro-director .loop-badge { position: absolute; bottom: 2px; left: 3px; font-size: 8px; opacity: .7; line-height: 1; }
+.maestro-director .layout-list .loop-badge { position: static; margin-left: 4px; }
 
 /* Presets — each tag is a group: a label + square member tiles grouped by category */
 .maestro-director .preset-list { display: flex; flex-direction: column; gap: 12px; }

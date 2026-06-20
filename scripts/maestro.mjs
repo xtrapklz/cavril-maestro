@@ -40,6 +40,8 @@ globalThis.Maestro = {
   _pathsResolved: false,
   /** @type {Set<foundry.audio.Sound>} live soundboard one-shots (for Stop all) */
   _oneShots: new Set(),
+  /** @type {Map<string,object>} toggled/looping soundboard cues, keyed by tile id/path (synced via socket) */
+  _sfxActive: new Map(),
   /** @type {null|foundry.audio.Sound} the looping indoor room-tone bed (interior mode) */
   _interiorBed: null,
   _interiorBedWant: false,
@@ -354,6 +356,89 @@ globalThis.Maestro = {
       try { snd?.stop?.({ volume: 0, fade: ms }); } catch (_e) { /* ignore */ }
     }
     this._oneShots.clear();
+    for (const key of [...this._sfxActive.keys()]) this.toggleSfx(key);   // stop + broadcast toggled/looping sfx too
+  },
+
+  /* ----- Toggleable / looping soundboard cues (active state, tap-to-stop, synced) ----- */
+
+  /** Is a soundboard tile (by its key = src/editId/folder path) currently sounding here? */
+  isSfxPlaying(key) { return this._sfxActive.has(key); },
+
+  /** Whether a soundboard tile is set to LOOP (single = repeat; wildcard/folder = cycle). */
+  sfxLoop(key) { return !!(game.settings.get(MODULE_ID, "sfxLoop") || {})[key]; },
+
+  /** Set a tile's loop mode (GM, world-shared). */
+  async setSfxLoop(key, on) {
+    if (!game.user.isGM) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "sfxLoop") || {});
+    if (on) map[key] = true; else delete map[key];
+    return game.settings.set(MODULE_ID, "sfxLoop", map);
+  },
+
+  /** GM: toggle a soundboard cue on/off (synced to all clients). Tap again to stop. */
+  toggleSfx(key, srcs, loop) {
+    if (!game.user?.isGM || !key) return;
+    if (this._sfxActive.has(key)) { this._sfxStopLocal(key, true); this._emitSfx({ op: "stop", key }); return; }
+    const list = (srcs || []).filter(Boolean);
+    if (!list.length) return;
+    this._sfxStartLocal(key, list, !!loop);
+    this._emitSfx({ op: "start", key, srcs: list, loop: !!loop });
+  },
+
+  /** GM: toggle a wildcard FOLDER cue — resolves the folder's files first, then starts/stops. */
+  async toggleSfxFolder(path, loop) {
+    if (!game.user?.isGM || !path) return;
+    if (this._sfxActive.has(path)) return this.toggleSfx(path);   // stop
+    const top = await this.browseSoundboard(path);
+    let files = (top.files || []).map(f => f.src);
+    if (!files.length) for (const d of (top.dirs || [])) { const sub = await this.browseSoundboard(d.path); files.push(...(sub.files || []).map(f => f.src)); }
+    if (!files.length) return ui.notifications?.warn("Maestro: no sounds in that folder.");
+    this.toggleSfx(path, files, loop);
+  },
+
+  _emitSfx(payload) { try { game.socket?.emit(SOCKET, { action: "sfx", ...payload }); } catch (_e) { /* ignore */ } },
+  _onSfxSocket(data) {
+    if (data?.op === "start") this._sfxStartLocal(data.key, data.srcs || [], !!data.loop);
+    else if (data?.op === "stop") this._sfxStopLocal(data.key, true);
+  },
+
+  /** Start a cue locally: loop a single, cycle a set, or fire a one-shot that clears itself. */
+  _sfxStartLocal(key, srcs, loop) {
+    this._sfxStopLocal(key, false);
+    const vv = Number(game.settings.get(MODULE_ID, "sfxVolume"));
+    const vol = Number.isFinite(vv) ? vv : 0.8;
+    const entry = { sounds: new Set(), loop, alive: true };
+    this._sfxActive.set(key, entry);
+    const play = (src, opts, onDone) => {
+      foundry.audio.AudioHelper.play({ src, volume: vol, autoplay: true, ...opts }, false).then(s => {
+        if (!s) return;
+        if (!entry.alive) { try { s.stop?.(); } catch (_e) {} return; }
+        entry.sounds.add(s);
+        if (onDone) { const fn = () => { entry.sounds.delete(s); if (entry.alive) onDone(); }; try { s.addEventListener?.("end", fn, { once: true }); s.addEventListener?.("stop", () => entry.sounds.delete(s), { once: true }); } catch (_e) {} }
+      }).catch(e => console.warn(`${MODULE_ID} | sfx play failed:`, e));
+    };
+    if (loop && srcs.length === 1) play(srcs[0], { loop: true });
+    else if (loop) {                                   // cycle the set, no immediate repeat
+      let last = null;
+      const next = () => { const pool = srcs.length > 1 ? srcs.filter(s => s !== last) : srcs; const pick = pool[Math.floor(Math.random() * pool.length)]; last = pick; play(pick, { loop: false }, next); };
+      next();
+    } else {                                           // one-shot (single or random), clears itself when it ends
+      const pick = srcs.length > 1 ? srcs[Math.floor(Math.random() * srcs.length)] : srcs[0];
+      play(pick, { loop: false }, () => this._sfxStopLocal(key, false));
+    }
+    MaestroDirector.refresh();
+  },
+
+  /** Stop a cue locally (fade out if requested) and drop it from the active set. */
+  _sfxStopLocal(key, fade = true) {
+    const entry = this._sfxActive.get(key);
+    if (!entry) return;
+    entry.alive = false;
+    this._sfxActive.delete(key);
+    const ms = fade ? Math.min(1200, Math.max(150, (Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8) * 1000)) : 0;
+    for (const s of entry.sounds) { try { s.stop?.(fade ? { volume: 0, fade: ms } : {}); } catch (_e) { try { s.stop?.(); } catch (_e2) {} } }
+    entry.sounds.clear();
+    if (fade) setTimeout(() => MaestroDirector.refresh(), ms + 30); else MaestroDirector.refresh();
   },
 
   /**
@@ -881,6 +966,8 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "sbAliases", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
   // Soundboard folders set to wildcard mode ({ path: true }) — click plays a random sound inside.
   game.settings.register(MODULE_ID, "folderWild", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
+  // Soundboard tiles set to LOOP ({ key: true }) — single repeats, wildcard/folder cycles.
+  game.settings.register(MODULE_ID, "sfxLoop", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
   // Custom music variations ({ soundscapeId: [{ id, name, base, enabled:[trackIds] }] }).
   game.settings.register(MODULE_ID, "musicVariations", { scope: "world", config: false, type: Object, default: {}, onChange: () => MaestroDirector.refresh() });
   // Per-preset member order + aliases ({ tag: { order:[key], aliases:{key:name} } }).
@@ -1090,7 +1177,7 @@ Hooks.once("ready", async () => {
 
     // Per-track morpher: apply mixes pushed by the GM, and keep the mix alive
     // across generative re-rolls with a light re-apply tick.
-    try { game.socket.on(SOCKET, data => { try { MaestroMixer.onSocket(data); } catch (e) { console.warn(`${MODULE_ID} | mix socket skipped:`, e); } }); } catch (_e) { /* ignore */ }
+    try { game.socket.on(SOCKET, data => { try { if (data?.action === "sfx") Maestro._onSfxSocket(data); else MaestroMixer.onSocket(data); } catch (e) { console.warn(`${MODULE_ID} | socket skipped:`, e); } }); } catch (_e) { /* ignore */ }
     setInterval(() => { try { MaestroMixer.reapply("music"); MaestroMixer.reapply("environment"); } catch (_e) { /* ignore */ } }, 1500);
 
     // Stage-1 control surface: reuse the lifted Playlists-sidebar selector
