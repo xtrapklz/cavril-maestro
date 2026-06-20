@@ -234,6 +234,19 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       return { src: srcs[0], srcs: srcs.join("|"), wild: true, count: files.length, editId: srcs[0], base, favId: srcs[0], fav: this.#fav("sfx", srcs[0]), tags: this.#tags("sfx", srcs[0]), name: this.#cn("sfx", srcs[0]) || base, icon: this.#icon("sfx", srcs[0], "fa-solid fa-shuffle"), cat: "sfx" };
     });
 
+    // Wildcard groups across every scanned soundboard folder: head src → full pipe-joined
+    // srcs, so a wildcard saved as a favorite / tagged into a preset still plays a RANDOM variation.
+    const sfxWild = {};
+    for (const entry of this.#sbCache.values()) {
+      const groups = {};
+      for (const f of (entry?.files ?? [])) {
+        const stem = String(f.stem ?? f.name);
+        const prefix = stem.includes("_") ? stem.slice(0, stem.indexOf("_")) : stem;
+        (groups[prefix] ??= []).push(f.src);
+      }
+      for (const g of Object.values(groups)) if (g.length > 1) sfxWild[g[0]] = g.join("|");
+    }
+
     // Favorites — any starred cue, grouped by type, sorted by sub-type then name.
     const favByCat = {};
     const favs = Maestro.favorites?.() ?? {};
@@ -252,8 +265,9 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       } else if (kind === "weather") {
         it = { kind, favId: fid, fav: true, id: fid, name: this.#cn("weather", fid) || WEATHER[fid] || prettify(fid), sub: "", icon: this.#icon("weather", fid, "fa-solid fa-cloud"), cat: "weather" };
       } else if (kind === "sfx") {
-        const nm = Maestro.sbAlias?.(fid) || prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, ""));
-        it = { kind, favId: fid, fav: true, src: fid, name: nm, sub: "", icon: "fa-solid fa-volume-high", cat: "sfx" };
+        const srcs = sfxWild[fid] || "";
+        const nm = this.#cn("sfx", fid) || Maestro.sbAlias?.(fid) || prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, ""));
+        it = { kind, favId: fid, fav: true, src: fid, srcs, name: nm, sub: "", icon: this.#icon("sfx", fid, srcs ? "fa-solid fa-shuffle" : "fa-solid fa-volume-high"), cat: "sfx" };
       }
       if (it) (favByCat[it.cat] ??= []).push(it);
     }
@@ -273,7 +287,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       if (kind === "music" && soundscapes[fid]) { const m = musicMeta(fid); return { kind, id: fid, baseName: this.#cn("music", fid) || m.name, icon: this.#icon("music", fid, m.icon), cat: m.cat }; }
       if (kind === "amb") { const canon = baseToCanonical[fid] || (envArrs[`${fid}Day`] ? `${fid}Day` : (envArrs[`${fid}Night`] ? `${fid}Night` : fid)); const m = ambienceMeta(canon); return { kind, id: canon, baseName: this.#cn("amb", fid) || m.name, icon: this.#icon("amb", fid, m.icon), cat: m.cat }; }
       if (kind === "weather") return { kind, id: fid, baseName: this.#cn("weather", fid) || WEATHER[fid] || prettify(fid), icon: this.#icon("weather", fid, "fa-solid fa-cloud"), cat: "weather" };
-      if (kind === "sfx") return { kind, src: fid, baseName: Maestro.sbAlias?.(fid) || prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "")), icon: "fa-solid fa-volume-high", cat: "sfx" };
+      if (kind === "sfx") { const srcs = sfxWild[fid] || ""; return { kind, src: fid, srcs, baseName: this.#cn("sfx", fid) || Maestro.sbAlias?.(fid) || prettify(decodeURIComponent(fid.split("?")[0].split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "")), icon: this.#icon("sfx", fid, srcs ? "fa-solid fa-shuffle" : "fa-solid fa-volume-high"), cat: "sfx" }; }
       return null;
     };
     const byTag = {};
@@ -442,7 +456,10 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     // Presets — a member plays just itself (click playing = stop, like the zones).
     onAll('[data-preset-member]', "click", e => {
       const { kind, id, src } = e.currentTarget.dataset;
-      if (kind === "sfx") Maestro.playOneShot(src);
+      if (kind === "sfx") {                                                          // wildcard → random non-repeating variation; else the one file
+        const list = (e.currentTarget.dataset.srcs || "").split("|").filter(Boolean);
+        Maestro.playRandomOneShot(src, list.length ? list : [src]);
+      }
       else if (this.#toggleCue(kind, id)) e.currentTarget.classList.add("fading");   // stopping → show fade-out (onChange refresh clears it)
       else this.render();                                                            // starting/switching → reflect now
     });
