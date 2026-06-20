@@ -273,7 +273,7 @@ globalThis.Maestro = {
       case "amb": case "ambience": case "environment":
         return this.play("emberEnvironment", { channel: "environment", arrangementId: this.ambienceCanonical(id) });
       case "weather": return this.play("weather", { channel: "weather", arrangementId: id });
-      case "sfx": return this.playOneShot(id);
+      case "sfx": return this.toggleSfx(id, [id], this.sfxLoop(id));   // tap to play, tap again to stop; loops if the tile is set to loop
       case "stop": return (id && id !== "all") ? this.stop(id) : this.stopAll();
       default: {
         if (soundscapes[s]?.type === "music") return this.play(s, { channel: "music" });
@@ -1242,6 +1242,34 @@ Hooks.once("ready", () => {
     if (!a) return;
     try { ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "cavril-maestro", ref: a.dataset.ref, label: Maestro.refMeta(a.dataset.ref).label })); } catch (_e) { /* ignore */ }
   });
+
+  // Drag a Maestro cue into a journal / text editor → insert an @Maestro[…] link
+  // (the enricher turns it into a clickable, draggable cue link). Capture phase so we
+  // run before the editor's own drop handling (which ignores our custom type).
+  document.body.addEventListener("drop", ev => {
+    let data; try { data = JSON.parse(ev.dataTransfer?.getData("text/plain") || "null"); } catch (_e) { return; }
+    if (data?.type !== "cavril-maestro" || !data.ref) return;
+    const cm = ev.target.closest?.("code-mirror");
+    const pm = ev.target.closest?.(".ProseMirror");
+    if (!cm && !pm) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const label = String(data.label || Maestro.refMeta(data.ref).label || data.ref).replace(/[}\]]/g, "");
+    const link = `@Maestro[${data.ref}]{${label}}`;
+    try {
+      if (cm) {
+        const pos = cm.posAtCoords?.({ x: ev.clientX, y: ev.clientY });
+        const v = cm.value ?? "";
+        cm.value = Number.isFinite(pos) ? (v.slice(0, pos) + link + v.slice(pos)) : (v + link);
+        cm.dispatchEvent(new Event("input", { bubbles: true }));
+      } else {
+        pm.focus();
+        const range = document.caretRangeFromPoint?.(ev.clientX, ev.clientY);
+        if (range) { const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+        document.execCommand("insertText", false, link + " ");
+      }
+      ui.notifications?.info("Maestro link inserted — save the page to keep it.");
+    } catch (e) { console.warn(`${MODULE_ID} | journal link insert failed:`, e); }
+  }, true);
 });
 
 // Dropping a Maestro cue (from the Director or a journal link) onto the hotbar

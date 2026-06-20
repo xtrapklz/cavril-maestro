@@ -297,6 +297,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       const m = resolveMember(key.slice(0, ci), key.slice(ci + 1));
       if (!m) continue;
       m.key = key;
+      m.ref = key;   // the tag-map key (kind:fid) IS the cue ref → drag the member out as a cue
       for (const tag of arr) (byTag[tag] ??= []).push(m);
     }
     const presets = Object.keys(byTag).sort((a, b) => a.localeCompare(b)).map(tag => {
@@ -502,7 +503,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     if (presetZone) {
       let dk = null, dtag = null;
       presetZone.querySelectorAll('.maestro-item[draggable="true"]').forEach(it => {
-        it.addEventListener("dragstart", e2 => { dk = it.dataset.key; dtag = it.dataset.tag; it.classList.add("dragging"); try { e2.dataTransfer.effectAllowed = "move"; e2.dataTransfer.setData("text/plain", dk || ""); } catch (_e) { /* ignore */ } });
+        it.addEventListener("dragstart", e2 => { dk = it.dataset.key; dtag = it.dataset.tag; it.classList.add("dragging"); try { e2.dataTransfer.effectAllowed = "all"; } catch (_e) { /* ignore */ } });   // text/plain (the cue) is set by the [data-ref] handler; reorder uses the closure
         it.addEventListener("dragend", () => { dk = null; dtag = null; it.classList.remove("dragging"); });
         it.addEventListener("dragover", e2 => e2.preventDefault());
         it.addEventListener("drop", e2 => { e2.preventDefault(); const tk = it.dataset.key, tt = it.dataset.tag; if (dk && tk && dtag === tt && dk !== tk) this.#reorderPresetMember(dtag, dk, tk); });
@@ -625,7 +626,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     if (favZone) {
       let dragKey = null;
       favZone.querySelectorAll('.maestro-item[draggable="true"]').forEach(it => {
-        it.addEventListener("dragstart", e => { dragKey = it.dataset.favKey; it.classList.add("dragging"); try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragKey || ""); } catch (_e) { /* ignore */ } });
+        it.addEventListener("dragstart", e => { dragKey = it.dataset.favKey; it.classList.add("dragging"); try { e.dataTransfer.effectAllowed = "all"; } catch (_e) { /* ignore */ } });   // text/plain (the cue) is set by the [data-ref] handler; reorder uses the closure
         it.addEventListener("dragend", () => { dragKey = null; it.classList.remove("dragging"); });
         it.addEventListener("dragover", e => e.preventDefault());
         it.addEventListener("drop", e => { e.preventDefault(); const target = it.dataset.favKey; if (dragKey && target && dragKey !== target) this.#reorderFavorite(dragKey, target); });
