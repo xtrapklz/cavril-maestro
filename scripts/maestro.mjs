@@ -27,12 +27,45 @@ import { dayNightVariant, prettify, musicMeta, ambienceMeta, WEATHER } from "./m
 const MODULE_ID = "cavril-maestro";
 const CHANNELS = ["music", "environment", "weather", "effects"];
 
+// Resolve a soundscape id that may not exist verbatim — a scene/preset can reference a name that was renamed or
+// never installed (e.g. a scene cue "wistful-theme"). Tries: exact → normalized id/label → a mood/genre alias →
+// substring. Returns a REAL soundscape id or null, so play() recovers to the closest match instead of going silent.
+const _warnedSoundscapes = new Set();
+const SOUNDSCAPE_ALIASES = {
+  wistful: "solemnFolk", melancholy: "solemnFolk", melancholic: "solemnFolk", somber: "solemnFolk", sombre: "solemnFolk", sad: "solemnFolk", mournful: "solemnFolk", longing: "solemnFolk", elegy: "solemnFolk", lament: "solemnFolk",
+  folk: "ordaniFolk", folksy: "ordaniFolk",
+  tavern: "bardTroupe", bard: "bardTroupe", bards: "bardTroupe", inn: "bardTroupe", troupe: "bardTroupe", minstrel: "bardTroupe",
+  town: "arcturianTown", village: "arcturianTown", hamlet: "arcturianTown",
+  gala: "marlstoneGala", ball: "marlstoneGala", ballroom: "marlstoneGala", dance: "marlstoneGala", feast: "marlstoneGala",
+  manor: "houseBastilla", noble: "houseBastilla", court: "houseBastilla", estate: "houseBastilla", palace: "houseBastilla",
+  ruins: "ancientRuins", ruin: "ancientRuins", ancient: "ancientRuins",
+  dungeon: "mysticalDungeon", crypt: "mysticalDungeon", catacomb: "mysticalDungeon",
+  temple: "templeCindaric", shrine: "templeCindaric", sanctuary: "templeCindaric",
+  docks: "seawall", harbour: "seawall", harbor: "seawall", port: "seawall", sea: "seawall", coast: "seawall", coastal: "seawall",
+};
+function resolveSoundscape(id) {
+  if (!id) return null;
+  if (soundscapes[id]) return id;
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const want = norm(id);
+  const ids = Object.keys(soundscapes);
+  let hit = ids.find((k) => norm(k) === want || norm(soundscapes[k]?.label || "") === want);   // normalized id/label
+  if (hit) return hit;
+  for (const t of String(id).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)) {               // mood/genre alias on any token
+    if (SOUNDSCAPE_ALIASES[t] && soundscapes[SOUNDSCAPE_ALIASES[t]]) return SOUNDSCAPE_ALIASES[t];
+  }
+  hit = ids.find((k) => { const nk = norm(k), nl = norm(soundscapes[k]?.label || ""); return (want.length >= 4 && (nk.includes(want) || nl.includes(want))) || (nk.length >= 4 && want.includes(nk)); });
+  return hit || null;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Public namespace — macros and other modules drive music here       */
 /* ------------------------------------------------------------------ */
 
 globalThis.Maestro = {
   id: MODULE_ID,
+  /** Resolve a possibly-missing soundscape id to the closest installed one (or null). Exposed for debugging. */
+  resolveSoundscape: (id) => resolveSoundscape(id),
   /** Combat theme for a raw actor list — the single source of truth for the type→theme selection
    *  (see combat.mjs). Other Cavril modules (EncounterStage) call this instead of keeping their own
    *  copy of TYPE_MUSIC + the scoring math. Returns a soundscape id, or null. */
@@ -217,8 +250,12 @@ globalThis.Maestro = {
    */
   async play(soundscapeId, { arrangementId, channel = "music", mood } = {}) {
     if (!game.user.isGM) return ui.notifications?.warn("Maestro: only a GM can direct music.");
-    const ss = soundscapes[soundscapeId];
-    if (!ss) return ui.notifications?.warn(`Maestro: unknown soundscape "${soundscapeId}".`);
+    let ss = soundscapes[soundscapeId];
+    if (!ss) {
+      const alt = resolveSoundscape(soundscapeId);
+      if (alt) { console.log(`%c[Maestro]%c soundscape "${soundscapeId}" not installed — playing closest match "${alt}" (${soundscapes[alt].label}).`, "color:#c39bd3;font-weight:bold", "color:inherit"); soundscapeId = alt; ss = soundscapes[alt]; }
+      else { if (!_warnedSoundscapes.has(soundscapeId)) { _warnedSoundscapes.add(soundscapeId); ui.notifications?.warn(`Maestro: unknown soundscape "${soundscapeId}" — no close match (run Maestro.list()).`); } return; }
+    }
     if (channel === "music") this.activeVariation = null;   // a normal play clears any custom-variation highlight
     arrangementId ??= Object.keys(ss.arrangements ?? {})[0];
     // Auto day/night: prefer the variant matching the in-world time of day.
