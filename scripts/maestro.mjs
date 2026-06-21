@@ -476,25 +476,22 @@ globalThis.Maestro = {
   },
 
   /**
-   * Interior perspective: route the WEATHER and AMBIENCE (environment) channels
-   * through a low-pass filter so the outdoors sounds muffled, as if heard from
-   * inside. `freq` is the cutoff in Hz (lower = more muffled). Off = bypass.
-   * Idempotent — safe to re-call after a channel re-plays (re-wires only if needed).
+   * Interior perspective: route the WEATHER and AMBIENCE (environment) channels through
+   * a low-pass filter so the outdoors sounds muffled, as if heard from inside. The cutoff
+   * is PRE-CALCULATED (no UI control): `freq` is ignored.
    *
-   * When `ramp` is true the muffle eases IN/OUT by sweeping the cutoff between fully
-   * open and the target over the crossfade duration (used by the on/off toggle, so
-   * the interior transition matches every other fade); the filter is only unwired
-   * once the open-up sweep finishes. Otherwise it snaps to the steady state (used by
-   * the re-apply after a channel change / on load / while dragging the cutoff slider).
-   * The looping room-tone bed is driven separately via setInteriorBed().
+   * Entering interior: the cutoff snaps most of the way down to INNER (timed to the door's
+   * loud transient so the slam masks it), then DRIFTS the rest of the way to DEEP over ~4s
+   * — the illusion of walking away from the door/wall/window. Leaving: snaps back open at
+   * the door, then bypasses. Without the door cue it eases instead of snapping. Re-applies
+   * after a channel change / on load snap to the steady DEEP state. Bed via setInteriorBed().
    */
   setInteriorFilter(on, freq, ramp = false) {
     const secs = Math.max(0.05, Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8);
-    const OPEN = 20000;                                              // effectively bypassed
-    const target = Math.max(120, Math.min(20000, Number(freq) || 800));
-    // When the door cue is on, SNAP the cutoff fast and time it to the door's loud
-    // transient (door close ≈0.15s in, open ≈0.09s) so the slam/creak masks the abrupt
-    // change — feels like the door causes the muffle. No door cue → smooth crossfade sweep.
+    const OPEN = 20000;   // bypassed
+    const INNER = 900;    // "door just shut" — snap most of the way to here
+    const DEEP = 480;     // "walked away from the door/window" — the final muffle
+    const WALK = 4;       // s — slow drift from INNER down to DEEP
     const doorMask = ramp && !!game.settings.get(MODULE_ID, "doorSound");
     const hold = on ? 0.09 : 0.03;    // s — hold before the snap (lands it on the door's impact)
     const snap = on ? 0.13 : 0.12;    // s — fast ramp once it hits
@@ -510,13 +507,20 @@ globalThis.Maestro = {
           orch._lpf.type = "lowpass";
           clearTimeout(orch._lpfOffTimer); orch._lpfOffTimer = null;   // cancel a pending unwire
           const f = orch._lpf.frequency, now = ctx.currentTime;
-          const start = orch._lpfWired ? Math.max(20, f.value) : (ramp ? OPEN : target);
+          const start = orch._lpfWired ? Math.max(20, f.value) : (ramp ? OPEN : DEEP);
           if (!orch._lpfWired) { g.disconnect(); g.connect(orch._lpf); orch._lpf.connect(dest); orch._lpfWired = true; }
           f.cancelScheduledValues(now);
           f.setValueAtTime(start, now);
-          if (!ramp) f.setValueAtTime(target, now);                                                    // instant (re-apply)
-          else if (doorMask) { f.setValueAtTime(start, now + hold); f.exponentialRampToValueAtTime(target, now + hold + snap); }   // hold open, snap shut on the slam
-          else f.exponentialRampToValueAtTime(target, now + secs);                                      // no door → smooth sweep
+          if (!ramp) {
+            f.setValueAtTime(DEEP, now);                                          // instant re-apply → steady deep state
+          } else if (doorMask) {
+            f.setValueAtTime(start, now + hold);                                  // hold open until the slam
+            f.exponentialRampToValueAtTime(INNER, now + hold + snap);             // snap most of the way shut
+            f.exponentialRampToValueAtTime(DEEP, now + hold + snap + WALK);       // then drift deeper over ~4s
+          } else {
+            f.exponentialRampToValueAtTime(INNER, now + secs);                    // no door → ease to inner
+            f.exponentialRampToValueAtTime(DEEP, now + secs + WALK);              // then drift deeper
+          }
         } else if (orch._lpfWired) {
           const f = orch._lpf.frequency, now = ctx.currentTime;
           if (ramp) {

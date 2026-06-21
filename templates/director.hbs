@@ -19,7 +19,6 @@
         <span class="ct-knob"></span>
         <span class="ct-opt" data-tooltip="Interior"><i class="fa-solid fa-house"></i></span>
       </button>
-      {{#if interiorOn}}<input type="range" name="interior-freq" class="interior-freq" min="200" max="6000" step="100" value="{{interiorFreq}}" data-tooltip="Muffle amount — lower = more muffled">{{/if}}
       <button type="button" class="door-toggle {{#if doorSound}}active{{/if}}" data-door-toggle data-tooltip="Door sound on the interior/exterior switch — {{#if doorSound}}on{{else}}off{{/if}}"><i class="fa-solid {{#if doorSound}}fa-door-open{{else}}fa-door-closed{{/if}}"></i></button>
     </span>
     <span class="phase-chip {{phase}} {{#unless autoDayNight}}off{{/unless}}" data-tooltip="In-world: {{phase}} — auto day/night is {{#if autoDayNight}}on{{else}}off (set it in module settings){{/if}}"><i class="fa-solid {{phaseIcon}}"></i></span>
