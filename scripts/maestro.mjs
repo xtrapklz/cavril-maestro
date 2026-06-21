@@ -33,6 +33,10 @@ const CHANNELS = ["music", "environment", "weather", "effects"];
 
 globalThis.Maestro = {
   id: MODULE_ID,
+  /** Combat theme for a raw actor list — the single source of truth for the type→theme selection
+   *  (see combat.mjs). Other Cavril modules (EncounterStage) call this instead of keeping their own
+   *  copy of TYPE_MUSIC + the scoring math. Returns a soundscape id, or null. */
+  combatSoundscapeFor: (actors) => { try { return MaestroCombat.soundscapeForActors(actors); } catch { return null; } },
   /** @type {EmberSoundscape|null} the singleton state manager */
   sound: null,
   /** @type {Record<string, object>} the soundscape data registry */
@@ -1321,6 +1325,11 @@ Hooks.once("ready", async () => {
 
     // Auto combat music — drive the music channel from encounter monsters.
     try { MaestroCombat.installHooks(); } catch (e) { console.warn(`${MODULE_ID} | combat hooks skipped:`, e); }
+
+    // Formalize the cross-module contract: expose the public surface as the module's `.api` so other
+    // Cavril modules can reach it via game.modules.get("cavril-maestro").api (discoverable, version-gated)
+    // alongside the legacy globalThis.Maestro.
+    try { const _m = game.modules.get(MODULE_ID); if (_m) _m.api = globalThis.Maestro; } catch (e) { console.warn(`${MODULE_ID} | api expose skipped:`, e); }
 
     // Follow the calendar's current weather (if Mini Calendar is present).
     try { Maestro.syncWeatherFromCalendar(); } catch (e) { console.warn(`${MODULE_ID} | initial weather sync skipped:`, e); }

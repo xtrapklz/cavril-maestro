@@ -68,27 +68,41 @@ function crOf(actor) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Classify a raw actor → {type, cr}, or null (must be a living NPC of a recognised 5e type). */
+function classifyActor(a) {
+  if (!a || a.type !== "npc") return null;            // dnd5e: monsters are "npc"
+  const hp = a.system?.attributes?.hp?.value;
+  if (Number.isFinite(hp) && hp <= 0) return null;     // dropped
+  const type = creatureType(a);
+  if (!type || !TYPE_MUSIC[type]) return null;          // unknown type → ignore
+  return { type, cr: crOf(a) };
+}
+
 /** Living, non-friendly NPC combatants of the active combat. */
 function monsters(combat) {
   const out = [];
   for (const c of combat?.combatants ?? []) {
-    const a = c.actor;
-    if (!a || a.type !== "npc") continue;            // dnd5e: monsters are "npc"
-    if (c.isDefeated) continue;                       // skull-marked
-    const hp = a.system?.attributes?.hp?.value;
-    if (Number.isFinite(hp) && hp <= 0) continue;     // dropped
-    const disp = c.token?.disposition ?? a.prototypeToken?.disposition;
-    if (disp === FRIENDLY) continue;                  // allied NPCs don't count
-    const type = creatureType(a);
-    if (!type || !TYPE_MUSIC[type]) continue;          // unknown type → ignore
-    out.push({ type, cr: crOf(a) });
+    if (c.isDefeated) continue;                          // skull-marked
+    const disp = c.token?.disposition ?? c.actor?.prototypeToken?.disposition;
+    if (disp === FRIENDLY) continue;                     // allied NPCs don't count
+    const m = classifyActor(c.actor); if (m) out.push(m);
   }
   return out;
 }
 
-/** The winning combat soundscape id for the current field, or null. */
-function chooseSoundscape(combat) {
-  const mobs = monsters(combat);
+/** Same classification from a RAW actor list (no Combat object yet). Lets other Cavril modules
+ *  (EncounterStage, at stage time) get the theme from the SAME math instead of mirroring TYPE_MUSIC. */
+function monstersFromActors(actors) {
+  const out = [];
+  for (const a of actors ?? []) {
+    if ((a?.prototypeToken?.disposition) === FRIENDLY) continue;
+    const m = classifyActor(a); if (m) out.push(m);
+  }
+  return out;
+}
+
+/** Score a classified mob list → winning soundscape id (CR + horde weight), gated to installed soundscapes. */
+function scoreMobs(mobs) {
   if (!mobs.length) return null;
   let w = Number(game.settings.get(MODULE_ID, "combatHordeWeight"));
   if (!Number.isFinite(w)) w = 1;
@@ -104,8 +118,14 @@ function chooseSoundscape(combat) {
   return best;
 }
 
+/** The winning combat soundscape id for the current field, or null. */
+function chooseSoundscape(combat) { return scoreMobs(monsters(combat)); }
+
 export const MaestroCombat = {
   TYPE_MUSIC,
+  // The combat theme for a raw actor list — the single source of truth other Cavril modules call so
+  // they don't keep their own copy of TYPE_MUSIC + the selection math. Returns a soundscape id or null.
+  soundscapeForActors: (actors) => scoreMobs(monstersFromActors(actors)),
   get active() { return _active; },
 
   /** Combat began — choose a theme from the field, once. */
