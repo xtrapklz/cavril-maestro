@@ -518,8 +518,7 @@ globalThis.Maestro = {
             f.exponentialRampToValueAtTime(INNER, now + hold + snap);             // snap most of the way shut
             f.exponentialRampToValueAtTime(DEEP, now + hold + snap + WALK);       // then drift deeper over ~4s
           } else {
-            f.exponentialRampToValueAtTime(INNER, now + secs);                    // no door → ease to inner
-            f.exponentialRampToValueAtTime(DEEP, now + secs + WALK);              // then drift deeper
+            f.exponentialRampToValueAtTime(DEEP, now + secs * 2);                 // no door → one gentle fade over 2× the crossfade
           }
         } else if (orch._lpfWired) {
           const f = orch._lpf.frequency, now = ctx.currentTime;
@@ -529,7 +528,7 @@ globalThis.Maestro = {
             f.setValueAtTime(cur, now);
             let offAt;
             if (doorMask) { f.setValueAtTime(cur, now + hold); f.exponentialRampToValueAtTime(OPEN, now + hold + snap); offAt = (hold + snap) * 1000 + 60; }   // snap open on the door
-            else { f.exponentialRampToValueAtTime(OPEN, now + secs); offAt = secs * 1000 + 80; }       // no door → smooth sweep
+            else { f.exponentialRampToValueAtTime(OPEN, now + secs * 2); offAt = secs * 2000 + 80; }   // no door → one gentle fade over 2× the crossfade
             clearTimeout(orch._lpfOffTimer);
             orch._lpfOffTimer = setTimeout(() => {
               try { if (orch._lpfWired) { g.disconnect(); orch._lpf?.disconnect(); g.connect(dest); orch._lpfWired = false; } } catch (_e) { /* ignore */ }
@@ -542,6 +541,34 @@ globalThis.Maestro = {
         }
       } catch (e) { console.warn(`${MODULE_ID} | interior filter (${channel}) skipped:`, e); }
     }
+  },
+
+  /** Whether a soundscape is a combat theme (they all end in "Combat"). */
+  isCombatSoundscape(id) { return /combat$/i.test(String(id || "")); },
+
+  /**
+   * Combat music is always 50% louder than normal music at the same channel level.
+   * A dedicated gain node sits on the MUSIC output (gainNode → boost → destination,
+   * same wiring trick as the interior filter); its gain rides 1.5 while a combat
+   * theme is playing and 1.0 otherwise. Re-applied on every state change (so it
+   * follows the music + re-wires onto a freshly built orchestration).
+   */
+  applyCombatBoost() {
+    const cfg = this.sound?.getActiveConfiguration?.()?.music;
+    const mul = (cfg?.soundscapeId && this.isCombatSoundscape(cfg.soundscapeId)) ? 1.5 : 1.0;
+    const orch = this.sound?.containers?.music;
+    const g = orch?.gainNode;
+    const ctx = orch?.context ?? g?.context;
+    if (!g || !ctx) return;
+    const dest = orch.destination ?? ctx.destination;
+    try {
+      orch._boost ||= ctx.createGain();
+      if (!orch._boostWired) { g.disconnect(); g.connect(orch._boost); orch._boost.connect(dest); orch._boostWired = true; }
+      const now = ctx.currentTime, gp = orch._boost.gain;
+      gp.cancelScheduledValues(now);
+      gp.setValueAtTime(Math.max(0.0001, gp.value), now);
+      gp.linearRampToValueAtTime(mul, now + 0.4);
+    } catch (e) { console.warn(`${MODULE_ID} | combat boost skipped:`, e); }
   },
 
   /**
@@ -899,8 +926,9 @@ Hooks.once("init", () => {
     default: {},
     onChange: data => {
       Maestro.sound?.onChange(data ?? {});
-      // A freshly (re)played channel gets a new gain node — re-wire the interior LPF onto it.
+      // A freshly (re)played channel gets a new gain node — re-wire the interior LPF + combat boost onto it.
       try { if (game.settings.get(MODULE_ID, "interiorOn")) Maestro.setInteriorFilter(true, game.settings.get(MODULE_ID, "interiorFreq")); } catch (_e) { /* ignore */ }
+      try { Maestro.applyCombatBoost(); } catch (_e) { /* ignore */ }
       MaestroDirector.refresh();
       MaestroMorphWindow.refresh();
     }
@@ -1188,6 +1216,7 @@ Hooks.once("ready", async () => {
 
     // Restore the interior-perspective filter + room-tone bed if it was left on.
     try { if (game.settings.get(MODULE_ID, "interiorOn")) { Maestro.setInteriorFilter(true, game.settings.get(MODULE_ID, "interiorFreq")); Maestro.setInteriorBed(true); } } catch (_e) { /* ignore */ }
+    try { Maestro.applyCombatBoost(); } catch (_e) { /* ignore */ }
 
     // Per-track morpher: apply mixes pushed by the GM, and keep the mix alive
     // across generative re-rolls with a light re-apply tick.
