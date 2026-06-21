@@ -48,6 +48,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
   #sbCache = new Map();      // path → { dirs, files }
   #sbBusy = false;
   #sbRootSeen = null;        // detect a changed root path → reset cache + nav
+  /** Flat list of all taggable cues ({kind,id,name,icon}) for the preset add-search. */
+  #cueIndex = [];
   /** Per-channel cue id currently crossfading OUT (so its tile pulses during a switch). */
   #fadingOut = { music: null, amb: null, weather: null };
   #fadeTimers = {};          // channelKind → timeout that clears the fade mark
@@ -318,6 +320,13 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const musicGroups = orderedGroups(musicByCat);
     const ambienceGroups = orderedGroups(ambByCat);
+    // Flat searchable index of every taggable cue (for the preset "+ Add sound" search).
+    this.#cueIndex = [
+      ...musicGroups.flatMap(g => g.items.map(i => ({ kind: "music", id: i.id, name: i.name, icon: i.icon }))),
+      ...ambienceGroups.flatMap(g => g.items.map(i => ({ kind: "amb", id: i.renameId, name: i.name, icon: i.icon }))),
+      ...weatherItems.map(i => ({ kind: "weather", id: i.id, name: i.name, icon: i.icon })),
+      ...soundboard.map(i => ({ kind: "sfx", id: i.editId, name: i.name, icon: i.icon }))
+    ];
     const counts = {
       music: musicGroups.reduce((n, g) => n + g.items.length, 0),
       amb: ambienceGroups.reduce((n, g) => n + g.items.length, 0),
@@ -502,6 +511,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
         : window.confirm(`Remove the tag "${tag}" from every cue?`);
       if (ok) await Maestro.deleteTag(tag);
     });
+    // Preset "+ Add sound" — search every cue and tag the chosen ones into this preset.
+    onAll('[data-preset-add]', "click", async e => { e.stopPropagation(); await this.#promptAddToPreset(e.currentTarget.dataset.presetAdd); });
     // Preset member: drag to reorder within the same preset.
     const presetZone = el.querySelector('.maestro-zone[data-zone="preset"]');
     if (presetZone) {
@@ -798,6 +809,39 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if (next === null || next === undefined) return;
     await Maestro.setPresetAlias(tag, key, next);
+  }
+
+  /** Search every cue and toggle the preset's tag on the chosen ones (auto-tag = add to the preset). */
+  async #promptAddToPreset(tag) {
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!DialogV2) return;
+    const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const cues = this.#cueIndex.slice().sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+    const rows = cues.map(c => {
+      const on = Maestro.tagsFor(c.kind, c.id).includes(tag);
+      return `<div class="add-row${on ? " added" : ""}" data-kind="${esc(c.kind)}" data-id="${esc(c.id)}" data-hay="${esc((c.name + " " + c.kind).toLowerCase())}">`
+        + `<i class="${esc(c.icon)}"></i><span class="nm">${esc(c.name)}</span><span class="k">${esc(c.kind)}</span><i class="state fa-solid fa-${on ? "check" : "plus"}"></i></div>`;
+    }).join("");
+    const dlg = new DialogV2({
+      window: { title: `Add to preset — ${tag}`, icon: "fa-solid fa-bolt" },
+      classes: ["maestro-add-dlg"],
+      content: `<input type="search" name="q" class="add-search" placeholder="Search sounds to add…" autocomplete="off"><div class="add-list">${rows || '<p class="hint">No cues found.</p>'}</div>`,
+      buttons: [{ action: "done", label: "Done", icon: "fa-solid fa-check", default: true }],
+      position: { width: 440 }
+    });
+    await dlg.render({ force: true });
+    const root = dlg.element;
+    if (!root) return;
+    const q = root.querySelector('[name="q"]');
+    q?.addEventListener("input", () => { const v = q.value.trim().toLowerCase(); for (const r of root.querySelectorAll(".add-row")) r.style.display = (!v || r.dataset.hay.includes(v)) ? "" : "none"; });
+    q?.focus();
+    root.querySelectorAll(".add-row").forEach(r => r.addEventListener("click", async () => {
+      const { kind, id } = r.dataset;
+      const cur = Maestro.tagsFor(kind, id), on = cur.includes(tag);
+      await Maestro.setTags(kind, id, on ? cur.filter(t => t !== tag) : [...cur, tag]);
+      r.classList.toggle("added", !on);
+      const st = r.querySelector(".state"); if (st) st.className = `state fa-solid fa-${!on ? "check" : "plus"}`;
+    }));
   }
 
   /** Reorder a member within a preset by moving it before `targetKey`. */

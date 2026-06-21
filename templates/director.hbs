@@ -200,7 +200,7 @@
     <div class="maestro-scroll preset-list">
       {{#each presets}}
       <div class="preset-group">
-        <div class="preset-label" draggable="true" data-ref="preset:{{tag}}" data-name="{{tag}}" data-tooltip="Drag to the hotbar to make a macro"><i class="fa-solid fa-bolt"></i> <span class="nm">{{tag}}</span> <span class="cnt">{{count}}</span></div>
+        <div class="preset-label" draggable="true" data-ref="preset:{{tag}}" data-name="{{tag}}" data-tooltip="Drag to the hotbar to make a macro"><i class="fa-solid fa-bolt"></i> <span class="nm">{{tag}}</span> <span class="cnt">{{count}}</span><button type="button" class="preset-add" data-preset-add="{{tag}}" data-tooltip="Search & add sounds to this preset"><i class="fa-solid fa-plus"></i></button></div>
         {{#each cats}}
         <div class="preset-cat"><i class="{{icon}}"></i> {{label}}</div>
         <div class="preset-members layout-grid">

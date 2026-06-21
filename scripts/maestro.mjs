@@ -771,29 +771,27 @@ globalThis.Maestro = {
   },
 
   /**
-   * Trigger a preset: play the cues carrying `tag`, but only ONE per exclusive
-   * channel (music / ambience / weather — they'd otherwise stomp each other),
-   * and fire all one-shot SFX. A one-click scene.
+   * Trigger a preset: play exactly ONE sound of each type tagged with `tag` — one music,
+   * one ambience, one weather, one SFX. If the preset has several of a type, a RANDOM one
+   * is picked (so only one of each plays at once). A one-click scene.
    */
   async triggerPreset(tag) {
     if (!game.user.isGM) return ui.notifications?.warn("Maestro: only a GM can fire presets.");
     const all = game.settings.get(MODULE_ID, "tags") || {};
     const env = soundscapes.emberEnvironment?.arrangements || {};
-    const usedChannel = new Set();
+    const byType = { music: [], amb: [], weather: [], sfx: [] };
     for (const [key, tags] of Object.entries(all)) {
       if (!Array.isArray(tags) || !tags.includes(tag)) continue;
       const ci = key.indexOf(":");
       const kind = key.slice(0, ci), id = key.slice(ci + 1);
-      try {
-        if (kind === "music") { if (usedChannel.has("music")) continue; usedChannel.add("music"); await this.play(id, { channel: "music" }); }
-        else if (kind === "amb") {
-          if (usedChannel.has("environment")) continue; usedChannel.add("environment");
-          const canon = env[`${id}Day`] ? `${id}Day` : (env[`${id}Night`] ? `${id}Night` : id);
-          await this.play("emberEnvironment", { channel: "environment", arrangementId: canon });
-        } else if (kind === "weather") { if (usedChannel.has("weather")) continue; usedChannel.add("weather"); await this.play("weather", { channel: "weather", arrangementId: id }); }
-        else if (kind === "sfx") this.playOneShot(id);
-      } catch (e) { console.warn(`${MODULE_ID} | preset member failed (${key}):`, e); }
+      if (byType[kind]) byType[kind].push(id);
     }
+    const pick = arr => arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
+    const m = pick(byType.music), a = pick(byType.amb), w = pick(byType.weather), s = pick(byType.sfx);
+    try { if (m) await this.play(m, { channel: "music" }); } catch (e) { console.warn(`${MODULE_ID} | preset music failed:`, e); }
+    try { if (a) { const canon = env[`${a}Day`] ? `${a}Day` : (env[`${a}Night`] ? `${a}Night` : a); await this.play("emberEnvironment", { channel: "environment", arrangementId: canon }); } } catch (e) { console.warn(`${MODULE_ID} | preset ambience failed:`, e); }
+    try { if (w) await this.play("weather", { channel: "weather", arrangementId: w }); } catch (e) { console.warn(`${MODULE_ID} | preset weather failed:`, e); }
+    try { if (s) this.playOneShot(s); } catch (e) { console.warn(`${MODULE_ID} | preset sfx failed:`, e); }
   },
 
   /* ----- Custom icons (per cue) + soundboard aliases (per file/folder) ----- */

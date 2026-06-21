@@ -20,7 +20,8 @@ export const CATEGORIES = {
   folk:       { label: "Folk & Social",     icon: "fa-solid fa-masks-theater" },
   theme:      { label: "Themes & Moods",    icon: "fa-solid fa-compact-disc" },
   weather:    { label: "Weather",           icon: "fa-solid fa-cloud-bolt" },
-  ambience:   { label: "Ambience",          icon: "fa-solid fa-wind" }
+  ambience:   { label: "Ambience",          icon: "fa-solid fa-wind" },
+  sfx:        { label: "Sound Effects",     icon: "fa-solid fa-volume-high" }
 };
 
 /* ---- Curated metadata for the 38 music soundscapes ---- */
