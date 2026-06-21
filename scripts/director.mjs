@@ -482,7 +482,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     onAll('[data-preset-rename]', "click", async e => {
       e.stopPropagation();
       const item = e.currentTarget.closest(".maestro-item");
-      if (item) await this.#promptPresetAlias(item.dataset.tag, item.dataset.key, item.dataset.name);
+      if (item) await this.#promptPresetMember(item.dataset.tag, item.dataset.key, item.dataset.name);
     });
     // Tag overview chips — rename a tag across all cues (click), or delete it everywhere (×).
     onAll('[data-tag-chip]', "click", async e => {
@@ -791,24 +791,32 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  /** Rename a member within a preset (alias scoped to that preset only). */
-  async #promptPresetAlias(tag, key, current) {
+  /** Member settings within a preset: name (alias), volume, start delay, play chance — all scoped to that preset. */
+  async #promptPresetMember(tag, key, current) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
     const esc = s => String(s ?? "").replace(/"/g, "&quot;");
-    let next = null;
-    if (DialogV2?.prompt) {
-      next = await DialogV2.prompt({
-        window: { title: `Rename in “${tag}”`, icon: "fa-solid fa-pen" },
-        content: `<p style="margin:.25rem 0 .4rem;opacity:.75">Name shown for this sound inside the “${esc(tag)}” preset only. Blank restores its normal name.</p>`
-               + `<input type="text" name="al" value="${esc(current)}" style="width:100%">`,
-        ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => btn.form.elements.al.value },
-        rejectClose: false
-      }).catch(() => null);
-    } else {
-      next = window.prompt("Name in this preset (blank = normal):", current ?? "");
+    const o = Maestro.presetMemberOpts(tag, key);
+    if (!DialogV2?.prompt) {
+      const next = window.prompt("Name in this preset (blank = normal):", current ?? "");
+      if (next != null) await Maestro.setPresetAlias(tag, key, next);
+      return;
     }
-    if (next === null || next === undefined) return;
-    await Maestro.setPresetAlias(tag, key, next);
+    const row = (label, name, min, max, step, val, out) => `<label class="pm-row"><span>${label}</span><input type="range" name="${name}" min="${min}" max="${max}" step="${step}" value="${val}"><output>${out}</output></label>`;
+    const res = await DialogV2.prompt({
+      window: { title: `In preset “${tag}”`, icon: "fa-solid fa-sliders" },
+      content: `<p style="margin:.2rem 0 .45rem;opacity:.75">How this sound behaves inside the “${esc(tag)}” preset.</p>`
+             + `<input type="text" name="al" value="${esc(current)}" placeholder="Name in this preset (blank = normal)" style="width:100%;margin-bottom:.5rem">`
+             + `<div class="pm-rows">`
+             + row("Volume", "vol", 0, 1, 0.05, o.volume, `${Math.round(o.volume * 100)}%`)
+             + row("Start delay", "dly", 0, 30, 0.5, o.delay, `${o.delay}s`)
+             + row("Play chance", "chc", 0, 1, 0.05, o.chance, `${Math.round(o.chance * 100)}%`)
+             + `</div>`,
+      ok: { label: "Save", icon: "fa-solid fa-check", callback: (_ev, btn) => ({ al: btn.form.elements.al.value, vol: Number(btn.form.elements.vol.value), dly: Number(btn.form.elements.dly.value), chc: Number(btn.form.elements.chc.value) }) },
+      rejectClose: false
+    }).catch(() => null);
+    if (!res) return;
+    await Maestro.setPresetAlias(tag, key, res.al);
+    await Maestro.setPresetMemberOpts(tag, key, { volume: res.vol, delay: res.dly, chance: res.chc });
   }
 
   /** Search every cue and toggle the preset's tag on the chosen ones (auto-tag = add to the preset). */

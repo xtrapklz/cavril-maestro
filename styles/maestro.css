@@ -296,6 +296,11 @@ a.maestro-link i { font-size: .85em; opacity: .85; }
 .maestro-add-dlg .add-row .state { width: 14px; text-align: center; opacity: .55; flex: 0 0 auto; }
 .maestro-add-dlg .add-row.added { color: #46d27a; }
 .maestro-add-dlg .add-row.added .state { opacity: 1; }
+/* Per-member preset settings dialog rows */
+.pm-rows .pm-row { display: flex; align-items: center; gap: 8px; margin: .35rem 0; font-size: 12px; }
+.pm-rows .pm-row > span { flex: 0 0 78px; opacity: .85; }
+.pm-rows .pm-row input[type="range"] { flex: 1; min-width: 0; }
+.pm-rows .pm-row output { flex: 0 0 38px; text-align: right; opacity: .75; }
 /* Tag overview row at the top of the Presets tab — see + manage every tag */
 .maestro-director .preset-tags { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 2px 2px 7px; margin-bottom: 4px; border-bottom: 1px solid var(--color-border-dark, #1e1e1e); }
 .maestro-director .preset-tags .pt-label { font-size: 11px; opacity: .55; display: inline-flex; align-items: center; gap: 4px; margin-right: 2px; }

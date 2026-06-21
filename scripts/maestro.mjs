@@ -771,9 +771,10 @@ globalThis.Maestro = {
   },
 
   /**
-   * Trigger a preset: play exactly ONE sound of each type tagged with `tag` — one music,
-   * one ambience, one weather, one SFX. If the preset has several of a type, a RANDOM one
-   * is picked (so only one of each plays at once). A one-click scene.
+   * Trigger a preset: play exactly ONE sound of each type tagged with `tag` (one music, one
+   * ambience, one weather, one SFX). Each member rolls its per-member play-chance to become a
+   * candidate; one random candidate of each type then plays — after its start delay, at its
+   * per-member volume. A one-click scene with a configurable mix.
    */
   async triggerPreset(tag) {
     if (!game.user.isGM) return ui.notifications?.warn("Maestro: only a GM can fire presets.");
@@ -784,14 +785,30 @@ globalThis.Maestro = {
       if (!Array.isArray(tags) || !tags.includes(tag)) continue;
       const ci = key.indexOf(":");
       const kind = key.slice(0, ci), id = key.slice(ci + 1);
-      if (byType[kind]) byType[kind].push(id);
+      if (byType[kind]) byType[kind].push({ id, key });
     }
-    const pick = arr => arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
-    const m = pick(byType.music), a = pick(byType.amb), w = pick(byType.weather), s = pick(byType.sfx);
-    try { if (m) await this.play(m, { channel: "music" }); } catch (e) { console.warn(`${MODULE_ID} | preset music failed:`, e); }
-    try { if (a) { const canon = env[`${a}Day`] ? `${a}Day` : (env[`${a}Night`] ? `${a}Night` : a); await this.play("emberEnvironment", { channel: "environment", arrangementId: canon }); } } catch (e) { console.warn(`${MODULE_ID} | preset ambience failed:`, e); }
-    try { if (w) await this.play("weather", { channel: "weather", arrangementId: w }); } catch (e) { console.warn(`${MODULE_ID} | preset weather failed:`, e); }
-    try { if (s) this.playOneShot(s); } catch (e) { console.warn(`${MODULE_ID} | preset sfx failed:`, e); }
+    const channelFor = { music: "music", amb: "environment", weather: "weather" };
+    for (const [kind, members] of Object.entries(byType)) {
+      const cands = members.filter(m => Math.random() < this.presetMemberOpts(tag, m.key).chance);   // play-chance gate
+      if (!cands.length) continue;
+      const m = cands[Math.floor(Math.random() * cands.length)];                                     // one random of this type
+      const opt = this.presetMemberOpts(tag, m.key);
+      const fire = async () => {
+        try {
+          if (kind === "sfx") {
+            const v = Number(game.settings.get(MODULE_ID, "sfxVolume"));
+            this.playOneShot(m.id, { volume: (Number.isFinite(v) ? v : 0.8) * opt.volume });
+          } else {
+            const ch = channelFor[kind];
+            if (opt.volume < 1) try { await this.sound?.channels?.[ch]?.update?.({ volume: opt.volume }); } catch (_e) { /* ignore */ }
+            if (kind === "music") await this.play(m.id, { channel: "music" });
+            else if (kind === "amb") { const canon = env[`${m.id}Day`] ? `${m.id}Day` : (env[`${m.id}Night`] ? `${m.id}Night` : m.id); await this.play("emberEnvironment", { channel: "environment", arrangementId: canon }); }
+            else await this.play("weather", { channel: "weather", arrangementId: m.id });
+          }
+        } catch (e) { console.warn(`${MODULE_ID} | preset ${kind} failed:`, e); }
+      };
+      if (opt.delay > 0) setTimeout(fire, opt.delay * 1000); else fire();   // start-delay stagger
+    }
   },
 
   /* ----- Custom icons (per cue) + soundboard aliases (per file/folder) ----- */
@@ -911,10 +928,34 @@ globalThis.Maestro = {
 
   /* ----- Preset-specific member order + aliases ----- */
 
-  /** Per-preset metadata: { order:[memberKey], aliases:{memberKey:name} }. */
+  /** Per-preset metadata: { order:[memberKey], aliases:{memberKey:name}, members:{memberKey:{volume,delay,chance}} }. */
   presetMeta(tag) {
     const m = (game.settings.get(MODULE_ID, "presetMeta") || {})[tag];
-    return { order: Array.isArray(m?.order) ? m.order : [], aliases: m?.aliases || {} };
+    return { order: Array.isArray(m?.order) ? m.order : [], aliases: m?.aliases || {}, members: m?.members || {} };
+  },
+
+  /** A member's per-preset playback options: volume (0..1), delay (s before it starts), chance (0..1 it plays). */
+  presetMemberOpts(tag, key) {
+    const m = (game.settings.get(MODULE_ID, "presetMeta") || {})[tag]?.members?.[key] || {};
+    return {
+      volume: Number.isFinite(m.volume) ? m.volume : 1,
+      delay: Number.isFinite(m.delay) ? m.delay : 0,
+      chance: Number.isFinite(m.chance) ? m.chance : 1
+    };
+  },
+
+  /** Set a member's per-preset options (merges; defaults are stripped to keep the map small). */
+  async setPresetMemberOpts(tag, key, opts) {
+    if (!game.user.isGM) return;
+    const map = foundry.utils.deepClone(game.settings.get(MODULE_ID, "presetMeta") || {});
+    const entry = (map[tag] ??= { order: [], aliases: {}, members: {} });
+    const members = (entry.members ??= {});
+    const next = { ...(members[key] || {}), ...opts };
+    if (!(next.volume < 1)) delete next.volume;     // keep only non-default
+    if (!(next.delay > 0)) delete next.delay;
+    if (!(next.chance < 1)) delete next.chance;
+    if (Object.keys(next).length) members[key] = next; else delete members[key];
+    return game.settings.set(MODULE_ID, "presetMeta", map);
   },
 
   /** Set a preset-specific display alias for a member (blank clears). */
