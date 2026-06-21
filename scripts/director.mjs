@@ -418,6 +418,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
           .catch(() => { this.#sbCache.set(cur, { dirs: [], files: [] }); })
           .finally(() => { this.#sbBusy = false; this.render(); });
       }
+      // Pre-warm wildcard folders' file lists so the first tap fires instantly too.
+      try { for (const t of el.querySelectorAll('.maestro-item.sb-folder-wild[data-path]')) Maestro.folderFiles?.(t.dataset.path); } catch (_e) { /* ignore */ }
     }
 
     // Live search filter (scoped to the active zone, no re-render).
@@ -452,7 +454,7 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
     });
 
     // Soundboard refresh (rescan) + back-to-main-board.
-    on('[data-sb-refresh]', "click", () => { this.#sbCache.clear(); this.render(); });
+    on('[data-sb-refresh]', "click", () => { this.#sbCache.clear(); Maestro._folderCache?.clear(); this.render(); });
     on('[data-sb-home]', "click", () => { this.#sbPath = null; this.render(); });
 
     // Presets — a member plays just itself (click playing = stop, like the zones).
@@ -546,19 +548,25 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
         if (outgoing && outgoing !== newCue) this.#markFading(kind, outgoing);        // switching → outgoing tile fades out during the crossfade
         return;                                                                       // play() → onChange re-render re-applies the mark
       }
-      else if (kind === "sbdir") {                                                     // wildcard folder = toggle play/stop; else open
+      else if (kind === "sbdir") {                                                     // wildcard folder: loop = toggle, one-shot = fire each tap; else open
         if (Maestro.isFolderWild?.(path)) {
-          if (Maestro.isSfxPlaying?.(path)) { e.currentTarget.classList.add("fading"); Maestro.toggleSfx(path); return; }   // stop
-          Maestro.toggleSfxFolder(path, Maestro.sfxLoop?.(path));                                                          // resolve files + start
+          if (Maestro.sfxLoop?.(path)) {                                               // loop folder → toggle the cycle on/off
+            if (Maestro.isSfxPlaying?.(path)) { e.currentTarget.classList.add("fading"); Maestro.toggleSfx(path); }
+            else Maestro.toggleSfxFolder(path, true);
+          } else {
+            Maestro.playRandomFolderShot(path);                                        // one-shot → a new random sound, instantly, every tap
+          }
           return;
         }
         this.#sbPath = path; this.render(); return;
       }
-      else if (kind === "sfx") {                                                       // tap to play, tap again to stop (loop or long one-shot)
+      else if (kind === "sfx") {                                                       // single = tap to play/stop; wildcard one-shot = fire each tap
         const key = e.currentTarget.dataset.id || src;
-        if (Maestro.isSfxPlaying?.(key)) { e.currentTarget.classList.add("fading"); Maestro.toggleSfx(key); return; }      // stop → fade-out
         const list = (e.currentTarget.dataset.srcs || "").split("|").filter(Boolean);
-        Maestro.toggleSfx(key, list.length ? list : [src], Maestro.sfxLoop?.(key));                                       // start (refresh comes from the registry)
+        const loop = Maestro.sfxLoop?.(key);
+        if (!loop && list.length > 1) { Maestro.playRandomOneShot(key, list); return; }                                   // wildcard → a new random variation, instantly, every tap
+        if (Maestro.isSfxPlaying?.(key)) { e.currentTarget.classList.add("fading"); Maestro.toggleSfx(key); return; }      // stop → fade-out (loop, or long single)
+        Maestro.toggleSfx(key, list.length ? list : [src], loop);                                                         // start (single, or loop wildcard)
         return;
       }
       this.render();

@@ -48,6 +48,8 @@ globalThis.Maestro = {
   /** @type {Record<string,string[]>} per-wildcard shuffle bags (no repeats until a cycle completes) */
   _wildBag: {},
   _wildLast: {},
+  /** @type {Map<string,string[]>} cached resolved file lists per wildcard folder (responsiveness) */
+  _folderCache: new Map(),
   /** @type {Set<string>} stem srcs that failed to load — skipped on future generative rolls */
   _badSrcs: new Set(),
   /** @type {null|{soundscapeId:string,vid:string}} the custom music variation currently selected (UI highlight) */
@@ -385,15 +387,36 @@ globalThis.Maestro = {
     this._emitSfx({ op: "start", key, srcs: list, loop: !!loop });
   },
 
-  /** GM: toggle a wildcard FOLDER cue — resolves the folder's files first, then starts/stops. */
+  /** Resolve (and cache) a wildcard folder's file list — one level into sub-folders if it has none directly. */
+  async folderFiles(path) {
+    if (this._folderCache.has(path)) return this._folderCache.get(path);
+    let files = [];
+    try {
+      const top = await this.browseSoundboard(path);
+      files = (top.files || []).map(f => f.src);
+      if (!files.length) for (const d of (top.dirs || [])) { const sub = await this.browseSoundboard(d.path); files.push(...(sub.files || []).map(f => f.src)); }
+    } catch (_e) { /* ignore */ }
+    if (files.length) this._folderCache.set(path, files);   // don't cache empty/failed — let the next tap retry
+    return files;
+  },
+
+  /** GM: toggle a wildcard FOLDER LOOP (cycles its sounds). Files are cached so it starts instantly after the first time. */
   async toggleSfxFolder(path, loop) {
     if (!game.user?.isGM || !path) return;
     if (this._sfxActive.has(path)) return this.toggleSfx(path);   // stop
-    const top = await this.browseSoundboard(path);
-    let files = (top.files || []).map(f => f.src);
-    if (!files.length) for (const d of (top.dirs || [])) { const sub = await this.browseSoundboard(d.path); files.push(...(sub.files || []).map(f => f.src)); }
+    const files = await this.folderFiles(path);
     if (!files.length) return ui.notifications?.warn("Maestro: no sounds in that folder.");
     this.toggleSfx(path, files, loop);
+  },
+
+  /** GM: fire one random non-repeating sound from a wildcard folder — responsive, each tap plays another (no toggle). */
+  async playRandomFolderShot(path) {
+    if (!game.user?.isGM || !path) return;
+    const cached = this._folderCache.get(path);
+    if (cached?.length) return this.playRandomOneShot(path, cached);   // instant when warmed
+    const files = await this.folderFiles(path);
+    if (!files.length) return ui.notifications?.warn("Maestro: no sounds in that folder.");
+    this.playRandomOneShot(path, files);
   },
 
   _emitSfx(payload) { try { game.socket?.emit(SOCKET, { action: "sfx", ...payload }); } catch (_e) { /* ignore */ } },
@@ -476,95 +499,85 @@ globalThis.Maestro = {
   },
 
   /**
-   * Interior perspective: route the WEATHER and AMBIENCE (environment) channels through
-   * a low-pass filter so the outdoors sounds muffled, as if heard from inside. The cutoff
-   * is PRE-CALCULATED (no UI control): `freq` is ignored.
+   * Interior perspective: low-pass the WEATHER, AMBIENCE (environment) AND MUSIC channels so
+   * the outdoors sounds muffled, as if heard from inside. Music is filtered at HALF the impact
+   * (cutoff = geometric midpoint toward open). PRE-CALCULATED — `freq` is ignored. Each channel
+   * runs a persistent chain (gainNode → lpf [→ combat boost for music] → destination); the lpf
+   * cutoff just rides between open (transparent) and the muffled targets.
    *
-   * Entering interior: the cutoff snaps most of the way down to INNER (timed to the door's
-   * loud transient so the slam masks it), then DRIFTS the rest of the way to DEEP over ~4s
-   * — the illusion of walking away from the door/wall/window. Leaving: snaps back open at
-   * the door, then bypasses. Without the door cue it eases instead of snapping. Re-applies
-   * after a channel change / on load snap to the steady DEEP state. Bed via setInteriorBed().
+   * Entering: snaps most of the way down to INNER timed to the door CLOSE slam (~0.15s), then
+   * drifts to DEEP over ~4s (walking away). Leaving: snaps open timed to the door OPEN swing
+   * (~0.30s — its loudest point). Door cue off → one gentle fade over 2× the crossfade. Re-applies
+   * after a channel change / on load snap to the steady state. Bed via setInteriorBed().
    */
   setInteriorFilter(on, freq, ramp = false) {
     const secs = Math.max(0.05, Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8);
-    const OPEN = 20000;   // bypassed
-    const INNER = 900;    // "door just shut" — snap most of the way to here
-    const DEEP = 480;     // "walked away from the door/window" — the final muffle
-    const WALK = 4;       // s — slow drift from INNER down to DEEP
+    const OPEN = 20000, ENV_INNER = 900, ENV_DEEP = 480, WALK = 4;
     const doorMask = ramp && !!game.settings.get(MODULE_ID, "doorSound");
-    const hold = on ? 0.09 : 0.03;    // s — hold before the snap (lands it on the door's impact)
-    const snap = on ? 0.13 : 0.12;    // s — fast ramp once it hits
-    for (const channel of ["weather", "environment"]) {
-      const orch = this.sound?.containers?.[channel];
-      const g = orch?.gainNode;
-      const ctx = orch?.context ?? g?.context;
-      if (!g || !ctx) continue;
-      const dest = orch.destination ?? ctx.destination;
+    const hold = on ? 0.09 : 0.24;   // entering: close slam ~0.15s · leaving: hold until the open swing ~0.30s
+    const snap = 0.13;
+    for (const channel of ["weather", "environment", "music"]) {
+      const orch = this._audioChain(channel);
+      if (!orch) continue;
       try {
+        const half = channel === "music";   // music = half the muffle (geometric midpoint toward open)
+        const INNER = half ? Math.sqrt(OPEN * ENV_INNER) : ENV_INNER;
+        const DEEP = half ? Math.sqrt(OPEN * ENV_DEEP) : ENV_DEEP;
+        const ctx = orch.context ?? orch.gainNode.context, f = orch._lpf.frequency, now = ctx.currentTime;
+        const cur = Math.max(20, f.value);
+        f.cancelScheduledValues(now);
+        f.setValueAtTime(cur, now);
         if (on) {
-          orch._lpf ||= ctx.createBiquadFilter();
-          orch._lpf.type = "lowpass";
-          clearTimeout(orch._lpfOffTimer); orch._lpfOffTimer = null;   // cancel a pending unwire
-          const f = orch._lpf.frequency, now = ctx.currentTime;
-          const start = orch._lpfWired ? Math.max(20, f.value) : (ramp ? OPEN : DEEP);
-          if (!orch._lpfWired) { g.disconnect(); g.connect(orch._lpf); orch._lpf.connect(dest); orch._lpfWired = true; }
-          f.cancelScheduledValues(now);
-          f.setValueAtTime(start, now);
-          if (!ramp) {
-            f.setValueAtTime(DEEP, now);                                          // instant re-apply → steady deep state
-          } else if (doorMask) {
-            f.setValueAtTime(start, now + hold);                                  // hold open until the slam
-            f.exponentialRampToValueAtTime(INNER, now + hold + snap);             // snap most of the way shut
-            f.exponentialRampToValueAtTime(DEEP, now + hold + snap + WALK);       // then drift deeper over ~4s
-          } else {
-            f.exponentialRampToValueAtTime(DEEP, now + secs * 2);                 // no door → one gentle fade over 2× the crossfade
-          }
-        } else if (orch._lpfWired) {
-          const f = orch._lpf.frequency, now = ctx.currentTime;
-          if (ramp) {
-            const cur = Math.max(20, f.value);
-            f.cancelScheduledValues(now);
-            f.setValueAtTime(cur, now);
-            let offAt;
-            if (doorMask) { f.setValueAtTime(cur, now + hold); f.exponentialRampToValueAtTime(OPEN, now + hold + snap); offAt = (hold + snap) * 1000 + 60; }   // snap open on the door
-            else { f.exponentialRampToValueAtTime(OPEN, now + secs * 2); offAt = secs * 2000 + 80; }   // no door → one gentle fade over 2× the crossfade
-            clearTimeout(orch._lpfOffTimer);
-            orch._lpfOffTimer = setTimeout(() => {
-              try { if (orch._lpfWired) { g.disconnect(); orch._lpf?.disconnect(); g.connect(dest); orch._lpfWired = false; } } catch (_e) { /* ignore */ }
-              orch._lpfOffTimer = null;
-            }, offAt);
-          } else {
-            clearTimeout(orch._lpfOffTimer); orch._lpfOffTimer = null;
-            g.disconnect(); orch._lpf?.disconnect(); g.connect(dest); orch._lpfWired = false;
-          }
+          if (!ramp) f.setValueAtTime(DEEP, now);                                  // instant re-apply → steady deep state
+          else if (doorMask) { f.setValueAtTime(cur, now + hold); f.exponentialRampToValueAtTime(INNER, now + hold + snap); f.exponentialRampToValueAtTime(DEEP, now + hold + snap + WALK); }
+          else f.exponentialRampToValueAtTime(DEEP, now + secs * 2);               // no door → gentle fade over 2× crossfade
+        } else {
+          if (!ramp) f.setValueAtTime(OPEN, now);                                  // instant open
+          else if (doorMask) { f.setValueAtTime(cur, now + hold); f.exponentialRampToValueAtTime(OPEN, now + hold + snap); }   // open on the door swing
+          else f.exponentialRampToValueAtTime(OPEN, now + secs * 2);               // no door → gentle fade over 2× crossfade
         }
       } catch (e) { console.warn(`${MODULE_ID} | interior filter (${channel}) skipped:`, e); }
     }
+  },
+
+  /** Build (once) and return a channel's persistent chain: gainNode → lpf [→ boost for music] → destination. */
+  _audioChain(channel) {
+    const orch = this.sound?.containers?.[channel];
+    const g = orch?.gainNode;
+    const ctx = orch?.context ?? g?.context;
+    if (!g || !ctx) return null;
+    const dest = orch.destination ?? ctx.destination;
+    try {
+      if (!orch._chainWired) {
+        orch._lpf = ctx.createBiquadFilter(); orch._lpf.type = "lowpass"; orch._lpf.frequency.value = 20000;
+        g.disconnect();
+        if (channel === "music") {
+          orch._boost = ctx.createGain(); orch._boost.gain.value = 1.0;
+          g.connect(orch._lpf); orch._lpf.connect(orch._boost); orch._boost.connect(dest);
+        } else {
+          g.connect(orch._lpf); orch._lpf.connect(dest);
+        }
+        orch._chainWired = true;
+      }
+    } catch (e) { console.warn(`${MODULE_ID} | audio chain (${channel}) skipped:`, e); return null; }
+    return orch;
   },
 
   /** Whether a soundscape is a combat theme (they all end in "Combat"). */
   isCombatSoundscape(id) { return /combat$/i.test(String(id || "")); },
 
   /**
-   * Combat music is always 50% louder than normal music at the same channel level.
-   * A dedicated gain node sits on the MUSIC output (gainNode → boost → destination,
-   * same wiring trick as the interior filter); its gain rides 1.5 while a combat
-   * theme is playing and 1.0 otherwise. Re-applied on every state change (so it
-   * follows the music + re-wires onto a freshly built orchestration).
+   * Combat music is always 50% louder than normal music at the same channel level — a gain
+   * node on the music chain rides 1.5 while a combat theme plays, 1.0 otherwise. Re-applied
+   * on every state change (follows the music + re-wires onto a freshly built orchestration).
    */
   applyCombatBoost() {
     const cfg = this.sound?.getActiveConfiguration?.()?.music;
     const mul = (cfg?.soundscapeId && this.isCombatSoundscape(cfg.soundscapeId)) ? 1.5 : 1.0;
-    const orch = this.sound?.containers?.music;
-    const g = orch?.gainNode;
-    const ctx = orch?.context ?? g?.context;
-    if (!g || !ctx) return;
-    const dest = orch.destination ?? ctx.destination;
+    const orch = this._audioChain("music");
+    if (!orch?._boost) return;
     try {
-      orch._boost ||= ctx.createGain();
-      if (!orch._boostWired) { g.disconnect(); g.connect(orch._boost); orch._boost.connect(dest); orch._boostWired = true; }
-      const now = ctx.currentTime, gp = orch._boost.gain;
+      const ctx = orch.context ?? orch.gainNode.context, now = ctx.currentTime, gp = orch._boost.gain;
       gp.cancelScheduledValues(now);
       gp.setValueAtTime(Math.max(0.0001, gp.value), now);
       gp.linearRampToValueAtTime(mul, now + 0.4);
