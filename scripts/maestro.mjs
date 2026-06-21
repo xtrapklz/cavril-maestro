@@ -42,6 +42,9 @@ globalThis.Maestro = {
   _oneShots: new Set(),
   /** @type {Map<string,object>} toggled/looping soundboard cues, keyed by tile id/path (synced via socket) */
   _sfxActive: new Map(),
+  /** @type {null|{kind:"key",key:string}|{kind:"sound",snd:object}} the ONE non-overlap SFX in the "main slot" — a new
+   *  SFX from ANY source (scene/macro/ambient/UI/preset) replaces it. Wildcard-group rapid-fire (overlap) is exempt. */
+  _mainSfx: null,
   /** @type {null|foundry.audio.Sound} the looping indoor room-tone bed (interior mode) */
   _interiorBed: null,
   _interiorBedWant: false,
@@ -335,17 +338,23 @@ globalThis.Maestro = {
     return { dirs, files };
   },
 
-  /** Play a one-shot effect for everyone (GM-triggered, broadcast to all). */
-  async playOneShot(src, { volume } = {}) {
+  /**
+   * Play a one-shot effect for everyone (GM-triggered, broadcast to all).
+   * Exclusive by default: stops the current single SFX first so nothing stacks. Pass
+   * `overlap: true` only for wildcard-group rapid-fire (the deliberate overlap lane).
+   */
+  async playOneShot(src, { volume, overlap = false } = {}) {
     if (!src) return;
     let v = Number.isFinite(volume) ? volume : Number(game.settings.get(MODULE_ID, "sfxVolume"));
     if (!Number.isFinite(v)) v = 0.8;
+    if (!overlap) this._stopMainSfx();                   // replace the current single SFX (no stacking)
     try {
       const snd = await foundry.audio.AudioHelper.play({ src, volume: v, autoplay: true, loop: false }, true);
       if (snd) {
         this._oneShots.add(snd);
-        const drop = () => this._oneShots.delete(snd);
+        const drop = () => { this._oneShots.delete(snd); if (this._mainSfx?.kind === "sound" && this._mainSfx.snd === snd) this._mainSfx = null; };
         try { snd.addEventListener?.("stop", drop, { once: true }); snd.addEventListener?.("end", drop, { once: true }); } catch (_e) { /* ignore */ }
+        if (!overlap) this._mainSfx = { kind: "sound", snd };   // claim the main slot
       }
       return snd;
     } catch (e) {
@@ -361,6 +370,7 @@ globalThis.Maestro = {
     }
     this._oneShots.clear();
     for (const key of [...this._sfxActive.keys()]) this.toggleSfx(key);   // stop + broadcast toggled/looping sfx too
+    this._mainSfx = null;                                                 // nothing left in the single-SFX slot
   },
 
   /* ----- Toggleable / looping soundboard cues (active state, tap-to-stop, synced) ----- */
@@ -379,14 +389,36 @@ globalThis.Maestro = {
     return game.settings.set(MODULE_ID, "sfxLoop", map);
   },
 
+  /**
+   * Stop whatever single SFX currently holds the "main slot" so a new one can take its place.
+   * Enforces "no stacking within the SFX type": at most ONE non-overlap effect plays at a time,
+   * whether it arrived as a fire-forget one-shot (preset/macro/travel) or a registered/synced cue
+   * (UI tap, `triggerRef`). Wildcard-group rapid-fire (the overlap lane) never claims this slot.
+   */
+  _stopMainSfx() {
+    const cur = this._mainSfx;
+    this._mainSfx = null;
+    if (!cur) return;
+    try {
+      if (cur.kind === "key") {
+        if (this._sfxActive.has(cur.key)) { this._sfxStopLocal(cur.key, true); this._emitSfx({ op: "stop", key: cur.key }); }
+      } else if (cur.snd) {
+        const ms = Math.min(800, Math.max(120, (Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8) * 1000));
+        cur.snd.stop?.({ volume: 0, fade: ms });
+      }
+    } catch (_e) { /* ignore */ }
+  },
+
   /** GM: toggle a soundboard cue on/off (synced to all clients). Tap again to stop. */
   toggleSfx(key, srcs, loop) {
     if (!game.user?.isGM || !key) return;
     if (this._sfxActive.has(key)) { this._sfxStopLocal(key, true); this._emitSfx({ op: "stop", key }); return; }
     const list = (srcs || []).filter(Boolean);
     if (!list.length) return;
+    this._stopMainSfx();                                  // exclusive: a new cue replaces the current single SFX
     this._sfxStartLocal(key, list, !!loop);
     this._emitSfx({ op: "start", key, srcs: list, loop: !!loop });
+    this._mainSfx = { kind: "key", key };                // claim the main slot
   },
 
   /** Resolve (and cache) a wildcard folder's file list — one level into sub-folders if it has none directly. */
@@ -415,10 +447,10 @@ globalThis.Maestro = {
   async playRandomFolderShot(path) {
     if (!game.user?.isGM || !path) return;
     const cached = this._folderCache.get(path);
-    if (cached?.length) return this.playRandomOneShot(path, cached);   // instant when warmed
+    if (cached?.length) return this.playRandomOneShot(path, cached, { overlap: true });   // instant when warmed
     const files = await this.folderFiles(path);
     if (!files.length) return ui.notifications?.warn("Maestro: no sounds in that folder.");
-    this.playRandomOneShot(path, files);
+    this.playRandomOneShot(path, files, { overlap: true });
   },
 
   /** Cached duration (seconds) of a soundboard cue, or null if not measured yet. */
@@ -438,7 +470,7 @@ globalThis.Maestro = {
 
   /** Fire a one-shot (single, or a random non-repeating wildcard variation), overlapping, and cache its duration. */
   async fireSfx(key, srcs) {
-    const snd = await this.playRandomOneShot(key, srcs);
+    const snd = await this.playRandomOneShot(key, srcs, { overlap: true });   // rapid-fire = the deliberate overlap lane
     try { if (snd && Number.isFinite(snd.duration)) this._sfxDur.set(key, snd.duration); } catch (_e) { /* ignore */ }
     return snd;
   },
@@ -478,6 +510,7 @@ globalThis.Maestro = {
 
   /** Stop a cue locally (fade out if requested) and drop it from the active set. */
   _sfxStopLocal(key, fade = true) {
+    if (this._mainSfx?.kind === "key" && this._mainSfx.key === key) this._mainSfx = null;   // free the slot if this held it
     const entry = this._sfxActive.get(key);
     if (!entry) return;
     entry.alive = false;
@@ -853,10 +886,10 @@ globalThis.Maestro = {
    * Pick a random source from `srcs` and play it WITHOUT repeating any one until the
    * whole set has played (a shuffle-bag per `key`). Avoids the same audio twice in a row.
    */
-  playRandomOneShot(key, srcs) {
+  playRandomOneShot(key, srcs, { overlap = false } = {}) {
     const pool = [...new Set((srcs || []).filter(Boolean))];
     if (!pool.length) return;
-    if (pool.length === 1) return this.playOneShot(pool[0]);
+    if (pool.length === 1) return this.playOneShot(pool[0], { overlap });
     let bag = (this._wildBag[key] || []).filter(s => pool.includes(s));
     if (!bag.length) {                                   // exhausted → refill + reshuffle
       bag = [...pool];
@@ -866,7 +899,7 @@ globalThis.Maestro = {
     const pick = bag.pop();
     this._wildBag[key] = bag;
     this._wildLast[key] = pick;
-    return this.playOneShot(pick);
+    return this.playOneShot(pick, { overlap });
   },
 
   /** Play a random audio file from a folder (wildcard click); looks one level into sub-folders if empty. */
