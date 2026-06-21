@@ -349,7 +349,9 @@ globalThis.Maestro = {
     if (!Number.isFinite(v)) v = 0.8;
     if (!overlap) this._stopMainSfx();                   // replace the current single SFX (no stacking)
     try {
-      const snd = await foundry.audio.AudioHelper.play({ src, volume: v, autoplay: true, loop: false }, true);
+      // channel:"environment" — keep SFX on the same Foundry channel as Maestro's soundscape so the
+      // music-director volume governs them. Default ("interface") sits near 100% and blasts over everything.
+      const snd = await foundry.audio.AudioHelper.play({ src, volume: v, autoplay: true, loop: false, channel: "environment" }, true);
       if (snd) {
         this._oneShots.add(snd);
         const drop = () => { this._oneShots.delete(snd); if (this._mainSfx?.kind === "sound" && this._mainSfx.snd === snd) this._mainSfx = null; };
@@ -489,7 +491,7 @@ globalThis.Maestro = {
     const entry = { sounds: new Set(), loop, alive: true };
     this._sfxActive.set(key, entry);
     const play = (src, opts, onDone) => {
-      foundry.audio.AudioHelper.play({ src, volume: vol, autoplay: true, ...opts }, false).then(s => {
+      foundry.audio.AudioHelper.play({ src, volume: vol, autoplay: true, channel: "environment", ...opts }, false).then(s => {
         if (!s) return;
         if (!entry.alive) { try { s.stop?.(); } catch (_e) {} return; }
         entry.sounds.add(s);
@@ -657,7 +659,7 @@ globalThis.Maestro = {
       const vol = Math.min(0.6, (Number(this.sound?.channels?.environment?.volume) || 0.7) * 0.6);
       const ms = Math.max(120, (Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8) * 1000);
       let snd = null;
-      try { snd = await foundry.audio.AudioHelper.play({ src, volume: 0, loop: true, autoplay: true }, false); }
+      try { snd = await foundry.audio.AudioHelper.play({ src, volume: 0, loop: true, autoplay: true, channel: "environment" }, false); }
       catch (e) { console.warn(`${MODULE_ID} | room-tone bed failed:`, e); }
       if (!this._interiorBedWant) { try { snd?.stop?.(); } catch (_e) { /* ignore */ } return; }   // toggled off mid-load
       if (snd) { try { snd.fade?.(vol, { duration: ms }); } catch (_e) { try { snd.volume = vol; } catch (_e2) { /* ignore */ } } }   // fade in to match the filter sweep
@@ -693,7 +695,7 @@ globalThis.Maestro = {
     const v = Number(game.settings.get(MODULE_ID, "sfxVolume"));
     const vol = (Number.isFinite(v) ? v : 0.8) * 0.5;   // door cue sits at half the soundboard level
     const src = this.doorSoundSrc(entering ? "close" : "open");
-    try { foundry.audio.AudioHelper.play({ src, volume: vol, loop: false, autoplay: true }, false); }
+    try { foundry.audio.AudioHelper.play({ src, volume: vol, loop: false, autoplay: true, channel: "environment" }, false); }
     catch (e) { console.warn(`${MODULE_ID} | door sound failed:`, e); }
   },
 
