@@ -421,6 +421,8 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
       // Pre-warm wildcard folders' file lists so the first tap fires instantly too.
       try { for (const t of el.querySelectorAll('.maestro-item.sb-folder-wild[data-path]')) Maestro.folderFiles?.(t.dataset.path); } catch (_e) { /* ignore */ }
     }
+    // Pre-measure SFX durations (metadata only) so taps know rapid-fire vs tap-to-stop up front.
+    try { for (const t of el.querySelectorAll('.maestro-item[data-kind="sfx"][data-src]')) Maestro.measureDuration?.(t.dataset.src); } catch (_e) { /* ignore */ }
 
     // Live search filter (scoped to the active zone, no re-render).
     const applyFilter = () => {
@@ -560,13 +562,17 @@ export class MaestroDirector extends HandlebarsApplicationMixin(ApplicationV2) {
         }
         this.#sbPath = path; this.render(); return;
       }
-      else if (kind === "sfx") {                                                       // single = tap to play/stop; wildcard one-shot = fire each tap
+      else if (kind === "sfx") {                                                       // <15s = rapid-fire/overlap · ≥15s (or loop) = tap-to-stop
         const key = e.currentTarget.dataset.id || src;
         const list = (e.currentTarget.dataset.srcs || "").split("|").filter(Boolean);
         const loop = Maestro.sfxLoop?.(key);
-        if (!loop && list.length > 1) { Maestro.playRandomOneShot(key, list); return; }                                   // wildcard → a new random variation, instantly, every tap
-        if (Maestro.isSfxPlaying?.(key)) { e.currentTarget.classList.add("fading"); Maestro.toggleSfx(key); return; }      // stop → fade-out (loop, or long single)
-        Maestro.toggleSfx(key, list.length ? list : [src], loop);                                                         // start (single, or loop wildcard)
+        const dur = Maestro.sfxDuration?.(key);
+        if (loop || (dur != null && dur >= 15)) {                                                                         // long / loop → toggle (end early)
+          if (Maestro.isSfxPlaying?.(key)) { e.currentTarget.classList.add("fading"); Maestro.toggleSfx(key); return; }   // stop → fade-out
+          Maestro.toggleSfx(key, list.length ? list : [src], loop);                                                       // start (registered, stoppable)
+        } else {
+          Maestro.fireSfx(key, list.length ? list : [src]);                                                              // short / unmeasured → a new sound each tap, overlapping
+        }
         return;
       }
       this.render();

@@ -50,6 +50,8 @@ globalThis.Maestro = {
   _wildLast: {},
   /** @type {Map<string,string[]>} cached resolved file lists per wildcard folder (responsiveness) */
   _folderCache: new Map(),
+  /** @type {Map<string,number>} cached SFX durations (s) — <15s = rapid-fire/overlap, ≥15s = toggle/stoppable */
+  _sfxDur: new Map(),
   /** @type {Set<string>} stem srcs that failed to load — skipped on future generative rolls */
   _badSrcs: new Set(),
   /** @type {null|{soundscapeId:string,vid:string}} the custom music variation currently selected (UI highlight) */
@@ -417,6 +419,28 @@ globalThis.Maestro = {
     const files = await this.folderFiles(path);
     if (!files.length) return ui.notifications?.warn("Maestro: no sounds in that folder.");
     this.playRandomOneShot(path, files);
+  },
+
+  /** Cached duration (seconds) of a soundboard cue, or null if not measured yet. */
+  sfxDuration(key) { return this._sfxDur.has(key) ? this._sfxDur.get(key) : null; },
+
+  /** Cache a sound's duration cheaply (metadata only — no full decode), fire-and-forget. */
+  measureDuration(src) {
+    if (!src || this._sfxDur.has(src)) return;
+    try {
+      const a = new Audio();
+      a.preload = "metadata";
+      a.addEventListener("loadedmetadata", () => { if (Number.isFinite(a.duration)) this._sfxDur.set(src, a.duration); a.src = ""; }, { once: true });
+      a.addEventListener("error", () => {}, { once: true });
+      a.src = src;
+    } catch (_e) { /* ignore */ }
+  },
+
+  /** Fire a one-shot (single, or a random non-repeating wildcard variation), overlapping, and cache its duration. */
+  async fireSfx(key, srcs) {
+    const snd = await this.playRandomOneShot(key, srcs);
+    try { if (snd && Number.isFinite(snd.duration)) this._sfxDur.set(key, snd.duration); } catch (_e) { /* ignore */ }
+    return snd;
   },
 
   _emitSfx(payload) { try { game.socket?.emit(SOCKET, { action: "sfx", ...payload }); } catch (_e) { /* ignore */ } },
