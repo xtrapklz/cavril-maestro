@@ -492,6 +492,12 @@ globalThis.Maestro = {
     const secs = Math.max(0.05, Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8);
     const OPEN = 20000;                                              // effectively bypassed
     const target = Math.max(120, Math.min(20000, Number(freq) || 800));
+    // When the door cue is on, SNAP the cutoff fast and time it to the door's loud
+    // transient (door close ≈0.15s in, open ≈0.09s) so the slam/creak masks the abrupt
+    // change — feels like the door causes the muffle. No door cue → smooth crossfade sweep.
+    const doorMask = ramp && !!game.settings.get(MODULE_ID, "doorSound");
+    const hold = on ? 0.09 : 0.03;    // s — hold before the snap (lands it on the door's impact)
+    const snap = on ? 0.13 : 0.12;    // s — fast ramp once it hits
     for (const channel of ["weather", "environment"]) {
       const orch = this.sound?.containers?.[channel];
       const g = orch?.gainNode;
@@ -508,19 +514,23 @@ globalThis.Maestro = {
           if (!orch._lpfWired) { g.disconnect(); g.connect(orch._lpf); orch._lpf.connect(dest); orch._lpfWired = true; }
           f.cancelScheduledValues(now);
           f.setValueAtTime(start, now);
-          if (ramp) f.exponentialRampToValueAtTime(target, now + secs);   // muffle eases in
-          else f.setValueAtTime(target, now);
+          if (!ramp) f.setValueAtTime(target, now);                                                    // instant (re-apply)
+          else if (doorMask) { f.setValueAtTime(start, now + hold); f.exponentialRampToValueAtTime(target, now + hold + snap); }   // hold open, snap shut on the slam
+          else f.exponentialRampToValueAtTime(target, now + secs);                                      // no door → smooth sweep
         } else if (orch._lpfWired) {
           const f = orch._lpf.frequency, now = ctx.currentTime;
           if (ramp) {
+            const cur = Math.max(20, f.value);
             f.cancelScheduledValues(now);
-            f.setValueAtTime(Math.max(20, f.value), now);
-            f.exponentialRampToValueAtTime(OPEN, now + secs);              // un-muffle, then bypass
+            f.setValueAtTime(cur, now);
+            let offAt;
+            if (doorMask) { f.setValueAtTime(cur, now + hold); f.exponentialRampToValueAtTime(OPEN, now + hold + snap); offAt = (hold + snap) * 1000 + 60; }   // snap open on the door
+            else { f.exponentialRampToValueAtTime(OPEN, now + secs); offAt = secs * 1000 + 80; }       // no door → smooth sweep
             clearTimeout(orch._lpfOffTimer);
             orch._lpfOffTimer = setTimeout(() => {
               try { if (orch._lpfWired) { g.disconnect(); orch._lpf?.disconnect(); g.connect(dest); orch._lpfWired = false; } } catch (_e) { /* ignore */ }
               orch._lpfOffTimer = null;
-            }, secs * 1000 + 80);
+            }, offAt);
           } else {
             clearTimeout(orch._lpfOffTimer); orch._lpfOffTimer = null;
             g.disconnect(); orch._lpf?.disconnect(); g.connect(dest); orch._lpfWired = false;
