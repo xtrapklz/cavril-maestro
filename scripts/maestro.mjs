@@ -250,6 +250,9 @@ globalThis.Maestro = {
    */
   async play(soundscapeId, { arrangementId, channel = "music", mood } = {}) {
     if (!game.user.isGM) return ui.notifications?.warn("Maestro: only a GM can direct music.");
+    // Audio can't start until the browser grants a user gesture; auto-weather/scene cues fire on load before that and
+    // would throw "PlaylistSound#_createSound until after game audio is unlocked". Wait for the first gesture instead.
+    if (game.audio?.locked) { if (game.audio.awaitFirstGesture) { try { await game.audio.awaitFirstGesture(); } catch (e) { return; } } else return; }
     let ss = soundscapes[soundscapeId];
     if (!ss) {
       const alt = resolveSoundscape(soundscapeId);
