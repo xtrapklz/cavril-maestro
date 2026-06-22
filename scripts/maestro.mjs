@@ -646,7 +646,8 @@ globalThis.Maestro = {
     // or theirs. Each sound is spliced through its own lowpass the first time we see it.
     try {
       const exts = this._externalWeatherSounds();
-      if (this._externalWeatherName()) console.log(`${MODULE_ID} | extweather interior=${on}: ${exts.length} playing sound(s) in "${this._externalWeatherName()}"`);
+      const _epl = this._externalWeatherPlaylist();
+      if (_epl) console.log(`${MODULE_ID} | extweather interior=${on}: ${exts.length} playing sound(s) in "${_epl.name}"`);
       for (const s of exts) {
         const lpf = this._adoptExternalSound(s); if (!lpf) continue;
         this._rampLpfFreq(lpf.frequency, s.context || lpf.context, on, ramp, ENV_INNER, ENV_DEEP, doorMask);
@@ -674,18 +675,27 @@ globalThis.Maestro = {
     } catch (e) { /* noop */ }
   },
 
-  /** Name of the external weather playlist to muffle (Mini Calendar's, etc.), or "" when off. */
+  /** External weather playlist NAME from the setting — or "" to auto-detect (see _externalWeatherPlaylist). */
   _externalWeatherName() { try { return String(game.settings.get(MODULE_ID, "externalWeatherPlaylist") || "").trim(); } catch { return ""; } },
-  /** Is this PlaylistSound part of the configured external weather playlist? */
-  _isExternalWeather(ps) { const n = this._externalWeatherName().toLowerCase(); return !!n && (ps?.parent?.name || "").toLowerCase() === n; },
+  /** Resolve which playlist to muffle: the named setting if given, else Mini Calendar's OWN weather playlist
+   *  (its `isWeatherPlaylist` flag, or its known "Mini Calendar Weather" name) so it works with NO configuration.
+   *  Returns null when neither exists. */
+  _externalWeatherPlaylist() {
+    try {
+      const n = this._externalWeatherName().toLowerCase();
+      if (n) return game.playlists?.find?.(p => (p.name || "").toLowerCase() === n) || null;
+      return game.playlists?.find?.(p => p.getFlag?.("wgtgm-mini-calendar", "isWeatherPlaylist") === true
+                                       || p.name === "Mini Calendar Weather") || null;
+    } catch { return null; }
+  },
+  /** Is this PlaylistSound part of the resolved external weather playlist? */
+  _isExternalWeather(ps) { const pl = this._externalWeatherPlaylist(); return !!pl && ps?.parent?.id === pl.id; },
   /** A Sound's output node — foundry.audio.Sound exposes gainNode in some builds, _gainNode/sourceNode in others. */
   _soundOut(s) { return s?.gainNode || s?._gainNode || s?.sourceNode || null; },
-  /** The currently-playing foundry.audio.Sound objects of the external weather playlist (case-insensitive name). */
+  /** The currently-playing foundry.audio.Sound objects of the resolved external weather playlist. */
   _externalWeatherSounds() {
     try {
-      const n = this._externalWeatherName().toLowerCase(); if (!n) return [];
-      const pl = game.playlists?.find?.(p => (p.name || "").toLowerCase() === n);
-      if (!pl) { console.warn(`${MODULE_ID} | extweather: playlist "${this._externalWeatherName()}" not found`); return []; }
+      const pl = this._externalWeatherPlaylist(); if (!pl) return [];
       const out = []; for (const ps of (pl.sounds || [])) if (ps.playing && ps.sound) out.push(ps.sound); return out;
     } catch { return []; }
   },
@@ -1216,7 +1226,7 @@ Hooks.once("init", () => {
   // muffle, so the indoor low-pass affects it just like our own weather channel. Value = the Foundry playlist's name.
   game.settings.register(MODULE_ID, "externalWeatherPlaylist", {
     name: "External weather playlist (interior muffle)",
-    hint: "Name of a Foundry playlist whose sounds (e.g. Mini Calendar's weather) should ride the interior/exterior low-pass just like Maestro's own weather channel. Leave blank to disable.",
+    hint: "Foundry playlist whose sounds ride the interior/exterior low-pass just like Maestro's own weather. Leave BLANK to auto-detect Mini Calendar's own weather playlist — only set a name to override it or muffle a different playlist.",
     scope: "world", config: true, type: String, default: "",
     onChange: () => { try { const on = !!game.settings.get(MODULE_ID, "interiorOn"); Maestro.setInteriorFilter(on, game.settings.get(MODULE_ID, "interiorFreq")); } catch (_e) {} }
   });
@@ -1505,8 +1515,8 @@ Hooks.on("updateWorldTime", onCalendarChange);
 Hooks.on("updatePlaylistSound", (ps, changes) => {
   try {
     if (!("playing" in (changes || {}))) return;
-    const watch = Maestro._externalWeatherName?.();
-    if (watch) console.log(`${MODULE_ID} | extweather: "${ps?.parent?.name}" / "${ps?.name}" playing=${changes.playing} · watching "${watch}" · match=${Maestro._isExternalWeather?.(ps)}`);
+    const watch = Maestro._externalWeatherPlaylist?.();
+    if (watch) console.log(`${MODULE_ID} | extweather: "${ps?.parent?.name}" / "${ps?.name}" playing=${changes.playing} · watching "${watch.name}" · match=${Maestro._isExternalWeather?.(ps)}`);
     if (changes.playing && Maestro._isExternalWeather?.(ps)) Maestro._adoptAndApplyExternal(ps);
   } catch (_e) { /* noop */ }
 });
