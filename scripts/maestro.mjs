@@ -642,15 +642,16 @@ globalThis.Maestro = {
       } catch (e) { console.warn(`${MODULE_ID} | interior filter (${channel}) skipped:`, e); }
     }
     // Route an EXTERNAL weather playlist (e.g. Mini Calendar's native weather, which plays as Foundry PlaylistSounds
-    // OUTSIDE our engine) through the SAME interior muffle, so the switch behaves identically whether the rain is ours
-    // or theirs. Each sound is spliced through its own lowpass the first time we see it.
+    // OUTSIDE our engine) through Maestro's weather channel, so it rides the same interior muffle AND the same volume
+    // slider whether the rain is ours or theirs. Adopting connects each new sound into the channel the first time we see it.
     try {
       const exts = this._externalWeatherSounds();
       const _epl = this._externalWeatherPlaylist();
       if (_epl) console.log(`${MODULE_ID} | extweather interior=${on}: ${exts.length} playing sound(s) in "${_epl.name}"`);
       for (const s of exts) {
-        const lpf = this._adoptExternalSound(s); if (!lpf) continue;
-        this._rampLpfFreq(lpf.frequency, s.context || lpf.context, on, ramp, ENV_INNER, ENV_DEEP, doorMask);
+        this._adoptExternalSound(s);
+        // Channel-routed sounds already ride the weather channel's lpf (ramped just above); only a standalone-fallback lpf rides its own ramp.
+        if (s._maestroExtLpf) this._rampLpfFreq(s._maestroExtLpf.frequency, s.context || s._maestroExtLpf.context, on, ramp, ENV_INNER, ENV_DEEP, doorMask);
       }
     } catch (e) { console.warn(`${MODULE_ID} | external weather muffle skipped:`, e); }
   },
@@ -699,29 +700,35 @@ globalThis.Maestro = {
       const out = []; for (const ps of (pl.sounds || [])) if (ps.playing && ps.sound) out.push(ps.sound); return out;
     } catch { return []; }
   },
-  /** Splice a lowpass into an external sound's output (out → lpf → destination) so the interior filter can ride it.
-   *  Idempotent — stores the filter on the sound. Falls back to the v13 effects pipeline if no output node is exposed. */
+  /** Route an external weather Sound through Maestro so BOTH the interior switch and the weather VOLUME slider ride it.
+   *  PRIMARY: connect its output straight into the weather channel's gainNode — it then inherits the channel volume
+   *  AND the channel's interior low-pass, exactly like our own weather. FALLBACK (no weather channel): a standalone
+   *  lowpass → destination (interior muffle only). Idempotent — stores the wired node on the sound. */
   _adoptExternalSound(s) {
     try {
       if (!s) return null;
-      if (s._maestroExtLpf) return s._maestroExtLpf;
+      if (s._maestroExtRouted || s._maestroExtLpf) return s._maestroExtRouted || s._maestroExtLpf;
       const ctx = s.context; if (!ctx) { console.warn(`${MODULE_ID} | extweather: sound has no AudioContext`); return null; }
+      const out = this._soundOut(s);
+      // PRIMARY — splice into the weather channel input (gainNode → lpf → dest), so the volume slider + interior both ride it.
+      const orch = this._audioChain("weather"); const wIn = orch?.gainNode;
+      if (out && wIn) { try { out.disconnect(); } catch (_e) {} out.connect(wIn); s._maestroExtRouted = wIn; console.log(`${MODULE_ID} | extweather: routed into weather channel — rides volume + interior ✓`); return wIn; }
+      // FALLBACK — standalone lowpass → destination (no weather channel available): interior muffle only.
       const lpf = ctx.createBiquadFilter(); lpf.type = "lowpass"; lpf.frequency.value = 20000;
-      const out = this._soundOut(s), dest = s.destination ?? ctx.gainNode ?? ctx.destination;
-      console.log(`${MODULE_ID} | extweather adopt: gainNode=${!!s.gainNode} _gainNode=${!!s._gainNode} sourceNode=${!!s.sourceNode} effects=${Array.isArray(s.effects)} dest=${!!dest}`);
-      if (out && dest) { try { out.disconnect(); } catch (_e) {} out.connect(lpf); lpf.connect(dest); s._maestroExtLpf = lpf; console.log(`${MODULE_ID} | extweather: routed via node splice ✓`); return lpf; }
-      if (Array.isArray(s.effects)) { s.effects = [...s.effects, lpf]; s._maestroExtLpf = lpf; console.log(`${MODULE_ID} | extweather: routed via effects pipeline ✓`); return lpf; }
+      const dest = s.destination ?? ctx.gainNode ?? ctx.destination;
+      if (out && dest) { try { out.disconnect(); } catch (_e) {} out.connect(lpf); lpf.connect(dest); s._maestroExtLpf = lpf; console.log(`${MODULE_ID} | extweather: routed via standalone lpf (fallback) ✓`); return lpf; }
+      if (Array.isArray(s.effects)) { s.effects = [...s.effects, lpf]; s._maestroExtLpf = lpf; console.log(`${MODULE_ID} | extweather: routed via effects pipeline (fallback) ✓`); return lpf; }
       console.warn(`${MODULE_ID} | extweather: no routable node on this Sound — keys: ${Object.keys(s).join(",")}`); return null;
     } catch (e) { console.warn(`${MODULE_ID} | route external weather failed:`, e); return null; }
   },
-  /** A weather sound just started — wait for its nodes, splice the lowpass, and snap it to the current interior state. */
+  /** A weather sound just started — wait for its nodes, route it into the weather channel, and (fallback only) snap its lpf. */
   _adoptAndApplyExternal(ps, tries = 0) {
     try {
       const s = ps?.sound;
       if ((!s || (!this._soundOut(s) && !Array.isArray(s?.effects))) && tries < 15) { setTimeout(() => this._adoptAndApplyExternal(ps, tries + 1), 150); return; }
-      const lpf = this._adoptExternalSound(s); if (!lpf) return;
-      const on = !!game.settings.get(MODULE_ID, "interiorOn");
-      this._rampLpfFreq(lpf.frequency, s.context, on, false, 900, 480, false);   // snap to the current steady state, no door swing
+      const node = this._adoptExternalSound(s); if (!node) return;
+      // Channel-routed sounds inherit the weather channel's current lpf state; only a standalone-fallback lpf needs snapping.
+      if (s?._maestroExtLpf) { const on = !!game.settings.get(MODULE_ID, "interiorOn"); this._rampLpfFreq(s._maestroExtLpf.frequency, s.context, on, false, 900, 480, false); }
     } catch (e) { /* noop */ }
   },
 
@@ -1226,10 +1233,12 @@ Hooks.once("init", () => {
   // muffle, so the indoor low-pass affects it just like our own weather channel. Value = the Foundry playlist's name.
   game.settings.register(MODULE_ID, "externalWeatherPlaylist", {
     name: "External weather playlist (interior muffle)",
-    hint: "Foundry playlist whose sounds ride the interior/exterior low-pass just like Maestro's own weather. Leave BLANK to auto-detect Mini Calendar's own weather playlist — only set a name to override it or muffle a different playlist.",
-    scope: "world", config: true, type: String, default: "",
+    hint: "Foundry playlist whose sounds ride the interior/exterior low-pass AND the Weather volume slider, just like Maestro's own weather. Defaults to Mini Calendar's weather playlist; clear it to auto-detect, or enter another playlist's name to override.",
+    scope: "world", config: true, type: String, default: "Mini Calendar Weather",
     onChange: () => { try { const on = !!game.settings.get(MODULE_ID, "interiorOn"); Maestro.setInteriorFilter(on, game.settings.get(MODULE_ID, "interiorFreq")); } catch (_e) {} }
   });
+  // One-time marker: whether we've already defaulted externalWeatherPlaylist to "Mini Calendar Weather" for an existing world.
+  game.settings.register(MODULE_ID, "extWeatherDefaulted", { scope: "world", config: false, type: Boolean, default: false });
 
   // Soundboard one-shot volume (used by playOneShot).
   game.settings.register(MODULE_ID, "sfxVolume", {
@@ -1432,9 +1441,45 @@ async function ensureChannels() {
   return CHANNELS.every(ch => Maestro.CONST[`${ch.toUpperCase()}_SOUND_ID`]);
 }
 
+// Group + order Maestro's settings into labelled sections in the Foundry Settings panel (DOM-only; registrations untouched).
+Hooks.on("renderSettingsConfig", (app, html) => {
+  try {
+    const root = html?.[0] ?? html; if (!root?.querySelector) return;
+    const rowFor = (key) => root.querySelector(`[name="${MODULE_ID}.${key}"]`)?.closest(".form-group");
+    const SECTIONS = [
+      ["🎛️ Audio Source", ["assetBasePath"]],
+      ["🌦️ Weather", ["weatherEnabled", "autoWeather", "externalWeatherPlaylist"]],
+      ["🔊 Soundboard", ["soundboardEnabled", "soundboardPath"]],
+      ["🎵 Music & Combat", ["autoDayNight", "autoCombatMusic", "combatHordeWeight", "combatEndSound"]],
+      ["⚙️ General", ["crossfadeSeconds"]],
+    ];
+    const anchor = rowFor("assetBasePath"); if (!anchor?.parentNode) return;   // not the Maestro section → bail
+    const parent = anchor.parentNode;
+    const marker = document.createComment("maestro-settings"); parent.insertBefore(marker, anchor);
+    const frag = document.createDocumentFragment();
+    for (const [label, keys] of SECTIONS) {
+      const rows = keys.map(rowFor).filter(Boolean); if (!rows.length) continue;
+      const h = document.createElement("h3"); h.textContent = label;
+      h.style.cssText = "margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid var(--color-border-light-primary,#0003);font-weight:700";
+      frag.appendChild(h);
+      for (const row of rows) frag.appendChild(row);   // appendChild MOVES the existing row into the ordered fragment
+    }
+    parent.insertBefore(frag, marker); parent.removeChild(marker);
+  } catch (e) { console.warn(`${MODULE_ID} | settings grouping skipped:`, e); }
+});
+
 Hooks.once("ready", async () => {
   try {
     resolveAssetPaths();
+
+    // One-time: point the external weather muffle at Mini Calendar's playlist for existing worlds that never set it.
+    try {
+      if (game.user.isGM && !game.settings.get(MODULE_ID, "extWeatherDefaulted")) {
+        if (!String(game.settings.get(MODULE_ID, "externalWeatherPlaylist") || "").trim())
+          await game.settings.set(MODULE_ID, "externalWeatherPlaylist", "Mini Calendar Weather");
+        await game.settings.set(MODULE_ID, "extWeatherDefaulted", true);
+      }
+    } catch (_e) { /* ignore */ }
 
     if ( !game.settings.get(MODULE_ID, "assetBasePath") ) {
       console.warn(`${MODULE_ID} | Audio Asset Base Path is not set — audio files will 404 until you set it (module settings) and reload.`);
