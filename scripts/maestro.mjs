@@ -638,6 +638,72 @@ globalThis.Maestro = {
         }
       } catch (e) { console.warn(`${MODULE_ID} | interior filter (${channel}) skipped:`, e); }
     }
+    // Route an EXTERNAL weather playlist (e.g. Mini Calendar's native weather, which plays as Foundry PlaylistSounds
+    // OUTSIDE our engine) through the SAME interior muffle, so the switch behaves identically whether the rain is ours
+    // or theirs. Each sound is spliced through its own lowpass the first time we see it.
+    try {
+      for (const s of this._externalWeatherSounds()) {
+        const lpf = this._adoptExternalSound(s); if (!lpf) continue;
+        this._rampLpfFreq(lpf.frequency, s.context || lpf.context, on, ramp, ENV_INNER, ENV_DEEP, doorMask);
+      }
+    } catch (e) { console.warn(`${MODULE_ID} | external weather muffle skipped:`, e); }
+  },
+
+  /** Ramp a lowpass cutoff between open (20kHz) and the muffled INNER/DEEP targets — the shared interior curve, used
+   *  by adopted external (playlist) weather sounds so they behave exactly like our own weather channel. */
+  _rampLpfFreq(f, ctx, on, ramp, INNER, DEEP, doorMask) {
+    try {
+      const OPEN = 20000, WALK = 4, snap = 0.13;
+      const secs = Math.max(0.05, Number(game.settings.get(MODULE_ID, "crossfadeSeconds")) || 0.8);
+      const hold = on ? 0.09 : 0.24, now = ctx.currentTime, cur = Math.max(20, f.value);
+      f.cancelScheduledValues(now); f.setValueAtTime(cur, now);
+      if (on) {
+        if (!ramp) f.setValueAtTime(DEEP, now);
+        else if (doorMask) { f.setValueAtTime(cur, now + hold); f.exponentialRampToValueAtTime(INNER, now + hold + snap); f.exponentialRampToValueAtTime(DEEP, now + hold + snap + WALK); }
+        else f.exponentialRampToValueAtTime(DEEP, now + secs * 2);
+      } else {
+        if (!ramp) f.setValueAtTime(OPEN, now);
+        else if (doorMask) { f.setValueAtTime(cur, now + hold); f.exponentialRampToValueAtTime(OPEN, now + hold + snap); }
+        else f.exponentialRampToValueAtTime(OPEN, now + secs * 2);
+      }
+    } catch (e) { /* noop */ }
+  },
+
+  /** Name of the external weather playlist to muffle (Mini Calendar's, etc.), or "" when off. */
+  _externalWeatherName() { try { return String(game.settings.get(MODULE_ID, "externalWeatherPlaylist") || "").trim(); } catch { return ""; } },
+  /** Is this PlaylistSound part of the configured external weather playlist? */
+  _isExternalWeather(ps) { const n = this._externalWeatherName(); return !!n && ps?.parent?.name === n; },
+  /** The currently-playing foundry.audio.Sound objects of the external weather playlist. */
+  _externalWeatherSounds() {
+    try {
+      const n = this._externalWeatherName(); if (!n) return [];
+      const pl = game.playlists?.find?.(p => p.name === n); if (!pl) return [];
+      const out = []; for (const ps of (pl.sounds || [])) if (ps.playing && ps.sound) out.push(ps.sound); return out;
+    } catch { return []; }
+  },
+  /** Splice a lowpass into an external sound's output (gainNode → lpf → destination) so the interior filter can ride
+   *  it. Idempotent — stores the filter on the sound. Falls back to the v13 effects pipeline if gainNode is absent. */
+  _adoptExternalSound(s) {
+    try {
+      if (!s) return null;
+      if (s._maestroExtLpf) return s._maestroExtLpf;
+      const ctx = s.context; if (!ctx) return null;
+      const lpf = ctx.createBiquadFilter(); lpf.type = "lowpass"; lpf.frequency.value = 20000;
+      const out = s.gainNode, dest = s.destination ?? ctx.gainNode ?? ctx.destination;
+      if (out && dest) { try { out.disconnect(); } catch (_e) {} out.connect(lpf); lpf.connect(dest); s._maestroExtLpf = lpf; return lpf; }
+      if (Array.isArray(s.effects)) { s.effects = [...s.effects, lpf]; s._maestroExtLpf = lpf; return lpf; }
+      return null;
+    } catch (e) { console.warn(`${MODULE_ID} | route external weather failed:`, e); return null; }
+  },
+  /** A weather sound just started — wait for its nodes, splice the lowpass, and snap it to the current interior state. */
+  _adoptAndApplyExternal(ps, tries = 0) {
+    try {
+      const s = ps?.sound;
+      if ((!s || !s.gainNode) && tries < 12) { setTimeout(() => this._adoptAndApplyExternal(ps, tries + 1), 120); return; }
+      const lpf = this._adoptExternalSound(s); if (!lpf) return;
+      const on = !!game.settings.get(MODULE_ID, "interiorOn");
+      this._rampLpfFreq(lpf.frequency, s.context, on, false, 900, 480, false);   // snap to the current steady state, no door swing
+    } catch (e) { /* noop */ }
   },
 
   /** Build (once) and return a channel's persistent chain: gainNode → lpf [→ boost for music] → destination. */
@@ -1137,6 +1203,15 @@ Hooks.once("init", () => {
     onChange: v => { try { if (game.settings.get(MODULE_ID, "interiorOn")) Maestro.setInteriorFilter(true, v); } catch (_e) {} }
   });
 
+  // Route an external weather playlist (e.g. Mini Calendar's native weather sounds) through the interior/exterior
+  // muffle, so the indoor low-pass affects it just like our own weather channel. Value = the Foundry playlist's name.
+  game.settings.register(MODULE_ID, "externalWeatherPlaylist", {
+    name: "External weather playlist (interior muffle)",
+    hint: "Name of a Foundry playlist whose sounds (e.g. Mini Calendar's weather) should ride the interior/exterior low-pass just like Maestro's own weather channel. Leave blank to disable.",
+    scope: "world", config: true, type: String, default: "",
+    onChange: () => { try { const on = !!game.settings.get(MODULE_ID, "interiorOn"); Maestro.setInteriorFilter(on, game.settings.get(MODULE_ID, "interiorFreq")); } catch (_e) {} }
+  });
+
   // Soundboard one-shot volume (used by playOneShot).
   game.settings.register(MODULE_ID, "sfxVolume", {
     scope: "world",
@@ -1416,6 +1491,12 @@ function onCalendarChange() {
 
 // Time advancing changes both the phase and (often) the weather.
 Hooks.on("updateWorldTime", onCalendarChange);
+// An external weather sound (e.g. Mini Calendar's) started → splice it into our interior low-pass so the indoor/outdoor
+// switch muffles it like our own weather. Stops clean themselves up: the sound and its filter are GC'd together.
+Hooks.on("updatePlaylistSound", (ps, changes) => {
+  try { if (("playing" in (changes || {})) && changes.playing && Maestro._isExternalWeather?.(ps)) Maestro._adoptAndApplyExternal(ps); }
+  catch (_e) { /* noop */ }
+});
 // Mini Calendar has no change hook. It writes weather to its own world settings,
 // so react to any of its setting writes (catches manual overrides from the
 // dropdown too). `key` is the full "namespace.key".
