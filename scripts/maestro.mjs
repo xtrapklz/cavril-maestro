@@ -22,10 +22,35 @@ import { MaestroDirector } from "./director.mjs";
 import { MaestroCombat } from "./combat.mjs";
 import { MaestroMixer, SOCKET } from "./mixer.mjs";
 import { MaestroMorphWindow } from "./morphwindow.mjs";
-import { dayNightVariant, prettify, musicMeta, ambienceMeta, WEATHER } from "./meta.mjs";
+import { dayNightVariant, prettify, musicMeta, ambienceMeta, ambienceBase, WEATHER } from "./meta.mjs";
 
 const MODULE_ID = "cavril-maestro";
 const CHANNELS = ["music", "environment", "weather", "effects"];
+
+// ── Unified sound-assignment menu ──────────────────────────────────────────────────────────────────────────────────
+// Every place across the Cavril suite where a SPECIFIC Maestro sound is chosen for a SPECIFIC event, gathered into one
+// settings menu (Maestro.soundAssignments()). Each row writes the consumer module's own setting (a `kind:id` ref string,
+// the same format triggerRef + the existing settings already use). Rows whose module isn't active are skipped.
+const SOUND_FIELDS = [
+  { mod: "cavril-wayfarer", key: "sfxDangerUp", label: "Danger rises" },
+  { mod: "cavril-wayfarer", key: "sfxDangerDown", label: "Danger falls" },
+  { mod: "cavril-wayfarer", key: "sfxCineEncounter", label: "Encounter sting" },
+  { mod: "cavril-wayfarer", key: "sfxCineInitiative", label: "Roll for initiative" },
+  { mod: "cavril-wayfarer", key: "sfxCineDusk", label: "Dusk" },
+  { mod: "cavril-wayfarer", key: "sfxCineNight", label: "Nightfall" },
+  { mod: "cavril-wayfarer", key: "sfxCineDawn", label: "Dawn" },
+  { mod: "cavril-wayfarer", key: "sfxCineWeather", label: "Weather change" },
+  { mod: "cavril-wayfarer", key: "sfxCineTravel", label: "Travel / biome change" },
+  { mod: "cavril-wayfarer", key: "sfxFoot", label: "Footsteps (on foot)" },
+  { mod: "cavril-wayfarer", key: "sfxCart", label: "Cart (on a road)" },
+  { mod: "cavril-wayfarer", key: "sfxBoat", label: "Boat (on water)" },
+  { mod: "cavril-encounter-stage", key: "esEncounterSfx", label: "Combat alert" },
+  { mod: "cavril-cityhud", key: "cityAmbience", label: "City ambience" },
+];
+// Thin settings-menu shell: clicking the menu button opens the assignment DialogV2 instead of rendering a window.
+class CavrilSoundAssignMenu extends foundry.applications.api.ApplicationV2 {
+  async render() { try { await globalThis.Maestro?.soundAssignments?.(); } catch (e) { console.warn("Maestro | sound-assign menu", e); } return this; }
+}
 
 // Resolve a soundscape id that may not exist verbatim — a scene/preset can reference a name that was renamed or
 // never installed (e.g. a scene cue "wistful-theme"). Tries: exact → normalized id/label → a mood/genre alias →
@@ -351,6 +376,70 @@ globalThis.Maestro = {
     if (kind === "stop") return { label: id && id !== "all" ? `Stop ${id}` : "Stop all", icon: "fa-solid fa-circle-stop" };
     if (soundscapes[s]?.type === "music") return { label: musicMeta(s).name, icon: musicMeta(s).icon };
     return { label: s, icon: "fa-solid fa-compact-disc" };
+  },
+
+  /** The full catalog of assignable sounds for a dropdown: music + ambience + weather + presets. Each entry is
+   *  { ref:"kind:id", label, cat, icon }. SFX files are excluded (async/folder-shaped — use browseSoundboard). */
+  soundCatalog() {
+    const out = [];
+    try {
+      for (const [id, s] of Object.entries(soundscapes || {})) {
+        if (s?.type !== "music") continue;   // only true music soundscapes (skip the environment container etc.)
+        const m = musicMeta(id); out.push({ ref: `music:${id}`, label: m.name || prettify(id), cat: m.cat || "theme", icon: m.icon || "fa-solid fa-music" });
+      }
+      const seen = new Set(); const amb = soundscapes?.emberEnvironment?.arrangements || {};
+      for (const arrId of Object.keys(amb)) { const base = ambienceBase(arrId); if (!base || seen.has(base)) continue; seen.add(base); const m = ambienceMeta(base); out.push({ ref: `amb:${base}`, label: m.name || prettify(base), cat: m.cat || "ambience", icon: m.icon || "fa-solid fa-tree" }); }
+      for (const [id, name] of Object.entries(WEATHER)) out.push({ ref: `weather:${id}`, label: name, cat: "weather", icon: "fa-solid fa-cloud" });
+      try { for (const t of (this.allTags?.() || [])) out.push({ ref: `preset:${t.tag}`, label: t.tag, cat: "preset", icon: "fa-solid fa-bolt" }); } catch (e) {}
+      out.sort((a, b) => (a.cat).localeCompare(b.cat) || (a.label).localeCompare(b.label));
+    } catch (e) { console.warn("Maestro | soundCatalog", e); }
+    return out;
+  },
+
+  /** Preview a ref. SFX → a LOCAL one-shot (playOneShot, non-destructive). music/amb/weather/preset → triggerRef,
+   *  which DOES change + broadcast the live mix (generative soundscapes have no non-destructive audition). */
+  previewRef(ref) {
+    try { const r = String(ref || ""); if (!r) return; if (r.startsWith("sfx:")) return this.playOneShot(r.slice(4), {}); return this.triggerRef(r); }
+    catch (e) { console.warn("Maestro | previewRef", e); }
+  },
+  /** Stop any local preview one-shots. */
+  stopPreview() { try { return this.stopOneShots?.(); } catch (e) {} },
+
+  /** Open the unified Sound Assignments editor — one dropdown + preview per suite event, writing each consumer
+   *  module's own ref setting. (Also reachable from Configure Settings → Cavril Sound Assignments.) */
+  async soundAssignments() {
+    try {
+      const fields = SOUND_FIELDS.filter(f => game.modules.get(f.mod)?.active);
+      if (!fields.length) return ui.notifications?.warn("Maestro: no Cavril sound-consumer modules are active.");
+      const cat = this.soundCatalog(); const byCat = {};
+      for (const e of cat) (byCat[e.cat] ??= []).push(e);
+      const esc = (s) => foundry.utils.escapeHTML(String(s ?? ""));
+      const opts = (cur) => `<option value="">— module default —</option>` + Object.entries(byCat).map(([c, arr]) => `<optgroup label="${esc(c)}">` + arr.map(e => `<option value="${esc(e.ref)}" ${e.ref === cur ? "selected" : ""}>${esc(e.label)}</option>`).join("") + `</optgroup>`).join("");
+      const byMod = {};
+      for (const f of fields) { let cur = ""; try { cur = game.settings.get(f.mod, f.key) || ""; } catch (e) {} (byMod[f.mod] ??= []).push({ ...f, cur }); }
+      const rows = Object.entries(byMod).map(([mod, fs]) => `<div class="csa-mod">${esc(game.modules.get(mod)?.title || mod)}</div>` + fs.map(f => `<div class="csa-row"><label title="${esc(f.mod)}:${esc(f.key)}">${esc(f.label)}</label><select data-mod="${esc(f.mod)}" data-key="${esc(f.key)}">${opts(f.cur)}</select><button type="button" class="csa-prev" title="Preview"><i class="fa-solid fa-play"></i></button></div>`).join("")).join("");
+      const content = `<div class="csa-wrap"><p class="csa-hint">Pick which Maestro sound plays for each suite event. <i class="fa-solid fa-play"></i> previews it — music / ambience / weather change the live mix; SFX preview locally. “Module default” keeps the built-in sound.</p>${rows}</div>`;
+      const self = this;
+      const dlg = new foundry.applications.api.DialogV2({
+        window: { title: "Cavril — Sound Assignments", icon: "fa-solid fa-sliders" },
+        position: { width: 500 },
+        content,
+        buttons: [
+          { action: "save", label: "Save", icon: "fa-solid fa-floppy-disk", default: true, callback: () => {
+              (dlg.element || document).querySelectorAll("select[data-mod]").forEach(sel => { try { game.settings.set(sel.dataset.mod, sel.dataset.key, sel.value); } catch (e) { console.warn("Maestro | save assignment", e); } });
+              self.stopPreview(); ui.notifications?.info("Maestro: sound assignments saved.");
+            } },
+          { action: "close", label: "Close", callback: () => self.stopPreview() },
+        ],
+      });
+      await dlg.render({ force: true });
+      const root = dlg.element; if (!root) return dlg;
+      const style = document.createElement("style");
+      style.textContent = `.csa-wrap{max-height:62vh;overflow:auto;padding:2px 4px 6px}.csa-hint{font-size:12px;opacity:.82;margin:0 0 10px;line-height:1.4}.csa-mod{font-weight:700;margin:12px 0 5px;padding-bottom:3px;border-bottom:1px solid #8884}.csa-row{display:flex;align-items:center;gap:8px;margin:5px 0}.csa-row label{flex:0 0 158px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.csa-row select{flex:1;min-width:0}.csa-prev{flex:0 0 28px;cursor:pointer}`;
+      root.appendChild(style);
+      root.querySelectorAll(".csa-prev").forEach(b => b.addEventListener("click", () => { const sel = b.parentElement.querySelector("select"); if (sel?.value) self.previewRef(sel.value); else self.stopPreview(); }));
+      return dlg;
+    } catch (e) { console.warn("Maestro | soundAssignments", e); }
   },
 
   /** Open the pop-out Ambience Morpher (per-track mixer). */
@@ -1151,6 +1240,15 @@ globalThis.Maestro = {
 /* ------------------------------------------------------------------ */
 
 Hooks.once("init", () => {
+  // One place to assign a Maestro sound to every suite event (travel / combat / city), with preview.
+  game.settings.registerMenu(MODULE_ID, "soundAssignments", {
+    name: "Cavril Sound Assignments",
+    label: "Assign Sounds…",
+    hint: "One menu to choose which Maestro sound plays for each suite event across Wayfarer, Encounter Stage, and Cities — each with a preview button.",
+    icon: "fa-solid fa-sliders",
+    type: CavrilSoundAssignMenu,
+    restricted: true,
+  });
   game.settings.register(MODULE_ID, "assetBasePath", {
     name: "Audio Asset Base Path",
     hint: "REQUIRED — set this to the folder that holds your music/ environment/ weather/ effects " +
