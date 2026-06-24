@@ -405,6 +405,20 @@ globalThis.Maestro = {
   /** Stop any local preview one-shots. */
   stopPreview() { try { return this.stopOneShots?.(); } catch (e) {} },
 
+  /** The soundboard folder's contents as assignable catalog entries (`sfx:<path>`), walked a few levels deep and capped
+   *  so a huge library can't choke the dropdown. Async (the folder is browsed lazily). */
+  async soundboardEntries(maxDepth = 2, cap = 250) {
+    const out = [], seen = new Set();
+    const walk = async (path, depth) => {
+      if (out.length >= cap) return;
+      let res = null; try { res = await this.browseSoundboard(path); } catch (e) { return; }
+      for (const f of (res?.files || [])) { if (out.length >= cap) break; const ref = `sfx:${f.src}`; if (seen.has(ref)) continue; seen.add(ref); out.push({ ref, label: f.name || f.stem || String(f.src).split("/").pop(), cat: "soundboard", icon: "fa-solid fa-volume-high" }); }
+      if (depth < maxDepth) for (const d of (res?.dirs || [])) { if (out.length >= cap) break; await walk(d.path, depth + 1); }
+    };
+    try { await walk(undefined, 0); } catch (e) { console.warn("Maestro | soundboardEntries", e); }
+    return out;
+  },
+
   /** Open the unified Sound Assignments editor — one dropdown + preview per suite event, writing each consumer
    *  module's own ref setting. (Also reachable from Configure Settings → Cavril Sound Assignments.) */
   async soundAssignments() {
@@ -413,12 +427,13 @@ globalThis.Maestro = {
       if (!fields.length) return ui.notifications?.warn("Maestro: no Cavril sound-consumer modules are active.");
       const cat = this.soundCatalog(); const byCat = {};
       for (const e of cat) (byCat[e.cat] ??= []).push(e);
+      try { for (const e of await this.soundboardEntries()) (byCat[e.cat] ??= []).push(e); } catch (e) {}   // include the soundboard folder's files
       const esc = (s) => foundry.utils.escapeHTML(String(s ?? ""));
       const opts = (cur) => `<option value="">— module default —</option>` + Object.entries(byCat).map(([c, arr]) => `<optgroup label="${esc(c)}">` + arr.map(e => `<option value="${esc(e.ref)}" ${e.ref === cur ? "selected" : ""}>${esc(e.label)}</option>`).join("") + `</optgroup>`).join("");
       const byMod = {};
       for (const f of fields) { let cur = ""; try { cur = game.settings.get(f.mod, f.key) || ""; } catch (e) {} (byMod[f.mod] ??= []).push({ ...f, cur }); }
-      const rows = Object.entries(byMod).map(([mod, fs]) => `<div class="csa-mod">${esc(game.modules.get(mod)?.title || mod)}</div>` + fs.map(f => `<div class="csa-row"><label title="${esc(f.mod)}:${esc(f.key)}">${esc(f.label)}</label><select data-mod="${esc(f.mod)}" data-key="${esc(f.key)}">${opts(f.cur)}</select><button type="button" class="csa-prev" title="Preview"><i class="fa-solid fa-play"></i></button></div>`).join("")).join("");
-      const content = `<div class="csa-wrap"><p class="csa-hint">Pick which Maestro sound plays for each suite event. <i class="fa-solid fa-play"></i> previews it — music / ambience / weather change the live mix; SFX preview locally. “Module default” keeps the built-in sound.</p>${rows}</div>`;
+      const rows = Object.entries(byMod).map(([mod, fs]) => `<div class="csa-mod">${esc(game.modules.get(mod)?.title || mod)}</div>` + fs.map(f => `<div class="csa-row"><label title="${esc(f.mod)}:${esc(f.key)}">${esc(f.label)}</label><select data-mod="${esc(f.mod)}" data-key="${esc(f.key)}">${opts(f.cur)}</select><button type="button" class="csa-tag" title="Assign a NEW preset tag for this event — then tag matching sounds with the same tag in Maestro"><i class="fa-solid fa-tag"></i></button><button type="button" class="csa-prev" title="Preview"><i class="fa-solid fa-play"></i></button></div>`).join("")).join("");
+      const content = `<div class="csa-wrap"><p class="csa-hint">Pick which Maestro sound plays for each suite event — a soundscape, a <b>soundboard</b> file, or a <b>preset tag</b> (<i class="fa-solid fa-tag"></i> to assign a new tag, then tag matching sounds with it in Maestro for a random pick). <i class="fa-solid fa-play"></i> previews it. “Module default” keeps the built-in sound.</p>${rows}</div>`;
       const self = this;
       const dlg = new foundry.applications.api.DialogV2({
         window: { title: "Cavril — Sound Assignments", icon: "fa-solid fa-sliders" },
@@ -435,9 +450,17 @@ globalThis.Maestro = {
       await dlg.render({ force: true });
       const root = dlg.element; if (!root) return dlg;
       const style = document.createElement("style");
-      style.textContent = `.csa-wrap{max-height:62vh;overflow:auto;padding:2px 4px 6px}.csa-hint{font-size:12px;opacity:.82;margin:0 0 10px;line-height:1.4}.csa-mod{font-weight:700;margin:12px 0 5px;padding-bottom:3px;border-bottom:1px solid #8884}.csa-row{display:flex;align-items:center;gap:8px;margin:5px 0}.csa-row label{flex:0 0 158px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.csa-row select{flex:1;min-width:0}.csa-prev{flex:0 0 28px;cursor:pointer}`;
+      style.textContent = `.csa-wrap{max-height:62vh;overflow:auto;padding:2px 4px 6px}.csa-hint{font-size:12px;opacity:.82;margin:0 0 10px;line-height:1.4}.csa-mod{font-weight:700;margin:12px 0 5px;padding-bottom:3px;border-bottom:1px solid #8884}.csa-row{display:flex;align-items:center;gap:6px;margin:5px 0}.csa-row label{flex:0 0 150px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.csa-row select{flex:1;min-width:0}.csa-prev,.csa-tag{flex:0 0 28px;cursor:pointer}`;
       root.appendChild(style);
       root.querySelectorAll(".csa-prev").forEach(b => b.addEventListener("click", () => { const sel = b.parentElement.querySelector("select"); if (sel?.value) self.previewRef(sel.value); else self.stopPreview(); }));
+      root.querySelectorAll(".csa-tag").forEach(b => b.addEventListener("click", () => {
+        const sel = b.parentElement.querySelector("select"); if (!sel) return;
+        const raw = (window.prompt("Preset tag for this event — then tag matching sounds with the SAME tag in Maestro for a random pick:") || "").trim().replace(/^preset:/i, "");
+        if (!raw) return;
+        const ref = `preset:${raw}`;
+        if (![...sel.options].some(o => o.value === ref)) { const o = document.createElement("option"); o.value = ref; o.textContent = `${raw} (tag)`; sel.appendChild(o); }
+        sel.value = ref;
+      }));
       return dlg;
     } catch (e) { console.warn("Maestro | soundAssignments", e); }
   },
